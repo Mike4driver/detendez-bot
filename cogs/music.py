@@ -10,13 +10,9 @@ import logging
 import os
 import time
 
-# Import cookie extractor
-try:
-    from utils.cookie_extractor import youtube_cookie_extractor
-    COOKIES_AVAILABLE = True
-except ImportError:
-    COOKIES_AVAILABLE = False
-    print("Warning: Cookie extractor not available. Some YouTube videos may not work.")
+# Check for YouTube cookies file
+COOKIES_FILE = 'youtube_cookies.txt'
+COOKIES_AVAILABLE = os.path.exists(COOKIES_FILE)
 
 logger = logging.getLogger(__name__)
 
@@ -55,46 +51,33 @@ ytdl = None
 
 async def initialize_ytdl():
     """Initialize yt-dlp with cookies"""
-    global ytdl
+    global ytdl, COOKIES_AVAILABLE
+    
+    # Check if cookies file exists
+    COOKIES_AVAILABLE = os.path.exists(COOKIES_FILE)
     
     if COOKIES_AVAILABLE:
-        try:
-            # Test environment first
-            env_test = await youtube_cookie_extractor.test_environment()
-            logger.info(f"Cookie environment: {env_test}")
-            
-            # Extract cookies
-            cookies_file = await youtube_cookie_extractor.extract_cookies()
-            
-            if cookies_file:
-                ytdl_format_options['cookiefile'] = cookies_file
-                logger.info(f"YouTube cookies loaded successfully ({env_test['extraction_method']} method)")
-            else:
-                logger.warning("Could not load YouTube cookies")
-        
-        except Exception as e:
-            logger.error(f"Error loading YouTube cookies: {e}")
+        ytdl_format_options['cookiefile'] = COOKIES_FILE
+        logger.info(f"YouTube cookies loaded from {COOKIES_FILE}")
     else:
-        logger.info("Cookie extraction not available, using basic yt-dlp")
+        logger.info("No YouTube cookies file found, using basic yt-dlp")
     
     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
     return ytdl
 
 async def refresh_ytdl_cookies():
     """Refresh YouTube cookies when needed"""
-    global ytdl
+    global ytdl, COOKIES_AVAILABLE
+    
+    # Re-check if cookies file exists
+    COOKIES_AVAILABLE = os.path.exists(COOKIES_FILE)
     
     if COOKIES_AVAILABLE:
-        try:
-            cookies_file = await youtube_cookie_extractor.extract_cookies(force_refresh=True)
-            if cookies_file:
-                ytdl_format_options['cookiefile'] = cookies_file
-                ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
-                logger.info("YouTube cookies refreshed")
-        except Exception as e:
-            logger.error(f"Error refreshing cookies: {e}")
+        ytdl_format_options['cookiefile'] = COOKIES_FILE
+        ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+        logger.info("YouTube cookies refreshed")
     else:
-        logger.warning("Cannot refresh cookies - cookie extraction not available")
+        logger.warning("No YouTube cookies file found")
 
 class YTDLSource(discord.PCMVolumeTransformer):
     """Audio source for YouTube videos"""
@@ -137,12 +120,16 @@ class YTDLSource(discord.PCMVolumeTransformer):
             
             # Check if it's a cookie-related error and we can refresh
             if (('sign in' in error_str or 'bot' in error_str or 'cookies' in error_str) 
-                and retry_with_refresh and COOKIES_AVAILABLE):
-                logger.warning("YouTube cookie error detected, refreshing cookies...")
-                await refresh_ytdl_cookies()
+                and retry_with_refresh):
+                logger.warning("YouTube access error detected...")
                 
-                # Retry once with refreshed cookies
-                return await cls.create_source(search, loop=loop, stream=stream, retry_with_refresh=False)
+                # If we don't have cookies, suggest adding them
+                if not COOKIES_AVAILABLE:
+                    raise Exception(f"YouTube access restricted. Add a {COOKIES_FILE} file for better access.")
+                else:
+                    # Try refreshing and retry once
+                    await refresh_ytdl_cookies()
+                    return await cls.create_source(search, loop=loop, stream=stream, retry_with_refresh=False)
             
             # Check for age restriction or other common issues
             if 'age' in error_str or 'restricted' in error_str:
@@ -177,12 +164,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
             
             # Check if it's a cookie-related error and we can refresh
             if (('sign in' in error_str or 'bot' in error_str or 'cookies' in error_str) 
-                and retry_with_refresh and COOKIES_AVAILABLE):
-                logger.warning("YouTube cookie error detected during search, refreshing cookies...")
-                await refresh_ytdl_cookies()
+                and retry_with_refresh):
+                logger.warning("YouTube access error detected during search...")
                 
-                # Retry once with refreshed cookies
-                return await cls.search_youtube(search, loop=loop, retry_with_refresh=False)
+                # If we have cookies, try refreshing and retry once
+                if COOKIES_AVAILABLE:
+                    await refresh_ytdl_cookies()
+                    return await cls.search_youtube(search, loop=loop, retry_with_refresh=False)
             
             logger.error(f"YouTube search error: {e}")
             return None
@@ -255,19 +243,6 @@ class MusicCog(commands.Cog):
     async def _initialize_ytdl(self):
         """Initialize ytdl with cookies"""
         await initialize_ytdl()
-        
-        # Schedule cookie cleanup
-        if COOKIES_AVAILABLE:
-            asyncio.create_task(self._periodic_cookie_cleanup())
-    
-    async def _periodic_cookie_cleanup(self):
-        """Periodically clean up old cookies"""
-        while True:
-            try:
-                await asyncio.sleep(86400)  # 24 hours
-                await youtube_cookie_extractor.cleanup_old_cookies()
-            except Exception as e:
-                logger.error(f"Error in cookie cleanup: {e}")
     
     def get_queue(self, guild_id: int) -> MusicQueue:
         """Get or create queue for guild"""
@@ -436,22 +411,14 @@ class MusicCog(commands.Cog):
                     inline=False
                 )
                 
-                if COOKIES_AVAILABLE:
+                if not COOKIES_AVAILABLE:
                     embed.add_field(
-                        name="Admin Actions:",
-                        value="Use `/refresh_cookies` to update authentication",
+                        name="Suggestion:",
+                        value=f"Add a `{COOKIES_FILE}` file to improve YouTube access",
                         inline=False
                     )
                 
                 await interaction.followup.send(embed=embed)
-                
-                # Try to refresh cookies automatically
-                if COOKIES_AVAILABLE:
-                    try:
-                        await refresh_ytdl_cookies()
-                        await interaction.followup.send("✅ Authentication refreshed! Please try the command again.", ephemeral=True)
-                    except:
-                        pass
             
             elif 'age-restricted' in error_message.lower() or 'region-blocked' in error_message.lower():
                 await interaction.followup.send("❌ This video is age-restricted or not available in your region.")
@@ -619,66 +586,158 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
             return
         
-        if not COOKIES_AVAILABLE:
-            await interaction.response.send_message("❌ Cookie extraction is not available in this environment!", ephemeral=True)
-            return
-        
         await interaction.response.defer()
         
         try:
-            # Test environment
-            env_test = await youtube_cookie_extractor.test_environment()
-            
-            embed = discord.Embed(
-                title="🔧 Cookie System Status",
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="Selenium Available", value="✅" if env_test['selenium_available'] else "❌", inline=True)
-            embed.add_field(name="Chrome Available", value="✅" if env_test['chrome_available'] else "❌", inline=True)
-            embed.add_field(name="Method", value=env_test['extraction_method'].title(), inline=True)
-            
-            await interaction.followup.send(embed=embed)
-            
-            # Refresh cookies
             await refresh_ytdl_cookies()
-            await interaction.followup.send("✅ YouTube cookies refreshed successfully!")
+            if COOKIES_AVAILABLE:
+                await interaction.followup.send(f"✅ YouTube cookies refreshed from {COOKIES_FILE}!")
+            else:
+                await interaction.followup.send(f"⚠️ No {COOKIES_FILE} file found. Please add one for better YouTube access.")
             
         except Exception as e:
             await interaction.followup.send(f"❌ Error refreshing cookies: {str(e)}")
     
-    @app_commands.command(name="cookie_status", description="Check cookie extraction status (Admin only)")
+    @app_commands.command(name="set_cookies", description="Set YouTube cookies for the bot (Admin only)")
+    @app_commands.describe(
+        cookies="YouTube cookies in Netscape format",
+        attachment="Cookie file to upload (optional)"
+    )
+    async def set_cookies(self, interaction: discord.Interaction, cookies: Optional[str] = None, attachment: Optional[discord.Attachment] = None):
+        """Set YouTube cookies for better access"""
+        # Check if user has admin permissions
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            cookies_content = None
+            
+            # Check if attachment was provided
+            if attachment:
+                if attachment.size > 1024 * 1024:  # 1MB limit
+                    await interaction.followup.send("❌ Cookie file is too large! Maximum size is 1MB.", ephemeral=True)
+                    return
+                
+                # Read the attachment
+                cookies_content = (await attachment.read()).decode('utf-8')
+                source = "uploaded file"
+            
+            # Check if cookies text was provided
+            elif cookies:
+                cookies_content = cookies
+                source = "text input"
+            
+            else:
+                embed = discord.Embed(
+                    title="🍪 Set YouTube Cookies",
+                    description="Provide YouTube cookies to improve bot access to YouTube content.",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="How to get cookies:",
+                    value="1. Install a browser extension like 'Get cookies.txt'\n2. Visit YouTube while logged in\n3. Export cookies in Netscape format\n4. Provide them via text or file upload",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Usage:",
+                    value="`/set_cookies cookies:<paste cookies here>`\nor\n`/set_cookies attachment:<upload cookies.txt>`",
+                    inline=False
+                )
+                
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Validate cookies format
+            if not self._validate_cookies(cookies_content):
+                await interaction.followup.send("❌ Invalid cookie format! Please provide cookies in Netscape format.", ephemeral=True)
+                return
+            
+            # Save cookies to file
+            with open(COOKIES_FILE, 'w', encoding='utf-8') as f:
+                f.write(cookies_content)
+            
+            # Refresh the ytdl instance
+            await refresh_ytdl_cookies()
+            
+            embed = discord.Embed(
+                title="✅ Cookies Set Successfully",
+                description=f"YouTube cookies have been saved from {source}.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="File", value=COOKIES_FILE, inline=True)
+            embed.add_field(name="Status", value="Active", inline=True)
+            
+            # Count cookies
+            cookie_lines = [line.strip() for line in cookies_content.split('\n') if line.strip() and not line.startswith('#')]
+            embed.add_field(name="Cookies Count", value=len(cookie_lines), inline=True)
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logger.error(f"Error setting cookies: {e}")
+            await interaction.followup.send(f"❌ Error setting cookies: {str(e)}", ephemeral=True)
+    
+    def _validate_cookies(self, cookies_content: str) -> bool:
+        """Validate cookies are in Netscape format"""
+        if not cookies_content or not cookies_content.strip():
+            return False
+        
+        lines = cookies_content.split('\n')
+        valid_lines = 0
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+            
+            # Netscape format has 7 tab-separated fields
+            parts = line.split('\t')
+            if len(parts) >= 6:  # Allow for some flexibility
+                valid_lines += 1
+            elif len(parts) >= 3:  # Minimum viable cookie line
+                valid_lines += 1
+        
+        # Must have at least some valid cookie lines
+        return valid_lines > 0
+    
+    @app_commands.command(name="cookie_status", description="Check cookie status (Admin only)")
     async def cookie_status(self, interaction: discord.Interaction):
-        """Check cookie extraction status"""
+        """Check cookie status"""
         # Check if user has admin permissions
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
             return
         
         embed = discord.Embed(
-            title="🍪 Cookie System Status",
+            title="🍪 Cookie Status",
             color=discord.Color.blue()
         )
         
-        embed.add_field(name="Cookie Extractor", value="✅ Available" if COOKIES_AVAILABLE else "❌ Not Available", inline=False)
+        embed.add_field(name="Cookie File", value=f"✅ Found" if COOKIES_AVAILABLE else f"❌ Not Found", inline=False)
+        embed.add_field(name="File Path", value=COOKIES_FILE, inline=False)
         
         if COOKIES_AVAILABLE:
             try:
-                env_test = await youtube_cookie_extractor.test_environment()
-                embed.add_field(name="Selenium", value="✅ Available" if env_test['selenium_available'] else "❌ Not Available", inline=True)
-                embed.add_field(name="Chrome Browser", value="✅ Available" if env_test['chrome_available'] else "❌ Not Available", inline=True)
-                embed.add_field(name="Extraction Method", value=env_test['extraction_method'].title(), inline=True)
+                file_age = int(time.time() - os.path.getmtime(COOKIES_FILE))
+                hours = file_age // 3600
+                minutes = (file_age % 3600) // 60
+                embed.add_field(name="File Age", value=f"{hours}h {minutes}m", inline=True)
                 
-                cookies_file = youtube_cookie_extractor.get_cookies_file()
-                if cookies_file and os.path.exists(cookies_file):
-                    file_age = int(time.time() - os.path.getmtime(cookies_file))
-                    embed.add_field(name="Cookie File", value=f"✅ {file_age}s old", inline=True)
-                else:
-                    embed.add_field(name="Cookie File", value="❌ Not Found", inline=True)
+                # Count cookies in file
+                with open(COOKIES_FILE, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    cookie_lines = [line.strip() for line in content.split('\n') if line.strip() and not line.startswith('#')]
+                    embed.add_field(name="Cookies Count", value=len(cookie_lines), inline=True)
                     
             except Exception as e:
-                embed.add_field(name="Error", value=str(e), inline=False)
+                embed.add_field(name="File Age", value="Unknown", inline=True)
         else:
-            embed.add_field(name="Note", value="Install selenium and webdriver-manager for full functionality", inline=False)
+            embed.add_field(name="Note", value=f"Use `/set_cookies` to add cookies for better YouTube access", inline=False)
         
         await interaction.response.send_message(embed=embed)
 
