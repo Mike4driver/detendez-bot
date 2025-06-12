@@ -147,8 +147,9 @@ A comprehensive multi-functional Discord bot that combines leveling systems, sta
 - `/birthday-config` - Configure birthday system
 - `/fact-config` - Configure daily facts
 - `/question-config` - Configure daily questions
+- `/set_cookies` - Set YouTube cookies for better music access
 - `/refresh_cookies` - Refresh YouTube cookies (for music)
-- `/cookie_status` - Check cookie extraction status
+- `/cookie_status` - Check cookie status
 
 ### Configuration Examples
 
@@ -171,6 +172,15 @@ A comprehensive multi-functional Discord bot that combines leveling systems, sta
 ```
 /fact-config channel:#daily-facts time:09:00
 /question-config channel:#daily-questions time:15:00
+```
+
+#### Setting up YouTube Cookies (for better music access)
+```
+/set_cookies cookies:<paste your cookies here>
+```
+Or upload a cookies file:
+```
+/set_cookies attachment:<cookies.txt file>
 ```
 
 ## 🛠️ Development
@@ -237,9 +247,9 @@ All features can be configured per Discord server through admin commands:
    - Ensure bot has voice permissions (Connect and Speak)
    - Check if you're in a voice channel
    - Verify yt-dlp is properly installed and up to date
+   - Use `/set_cookies` to add YouTube cookies for better access
    - Try `/refresh_cookies` if YouTube playback fails
-   - Check `/cookie_status` for cookie extraction issues
-   - Ensure Selenium and webdriver-manager are installed for cookie support
+   - Check `/cookie_status` for cookie file status
 
 3. **AI features not working**
    - Check if Gemini API key is set in `.env` file
