@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -20,7 +21,7 @@ class FactsCog(commands.Cog):
         """Setup Gemini AI"""
         if Config.GEMINI_API_KEY:
             genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-1.5-flash-002')
+            self.model = genai.GenerativeModel('gemini-2.0-flash-lite-001')
             self.ai_enabled = True
         else:
             self.model = None
@@ -68,11 +69,30 @@ class FactsCog(commands.Cog):
         """Wait until bot is ready"""
         await self.bot.wait_until_ready()
         
-        # Wait until it's the right time (if configured)
-        now = datetime.now()
-        target_time = time(9, 0)  # 9 AM default
+        # Get configured time from any guild, default to 09:00 if none configured
+        configured_time = None
+        for guild in self.bot.guilds:
+            try:
+                config = await self.bot.db.get_guild_config(guild.id)
+                fact_time = config.get('fact_time')
+                if fact_time:
+                    configured_time = fact_time
+                    break
+            except Exception:
+                continue
         
-        # Calculate seconds until target time
+        # Parse the time string or use default
+        if configured_time:
+            try:
+                hour, minute = map(int, configured_time.split(':'))
+                target_time = time(hour, minute)
+            except (ValueError, AttributeError):
+                target_time = time(9, 0)  # 9 AM default
+        else:
+            target_time = time(9, 0)  # 9 AM default
+        
+        # Wait until it's the right time
+        now = datetime.now()
         target_datetime = datetime.combine(now.date(), target_time)
         if target_datetime <= now:
             target_datetime = datetime.combine(now.date().replace(day=now.day + 1), target_time)
@@ -105,7 +125,6 @@ class FactsCog(commands.Cog):
             )
             
             fact = response.text.strip()
-            
             # Basic validation
             if len(fact) > 400:
                 fact = fact[:397] + "..."
@@ -131,6 +150,7 @@ class FactsCog(commands.Cog):
         return random.choice(facts)
     
     async def _store_recent_content(self, guild_id: int, content: str):
+        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         """Store recently posted content to avoid repetition"""
         import aiosqlite
         async with aiosqlite.connect(self.bot.db.db_file) as db:
@@ -158,7 +178,7 @@ class FactsCog(commands.Cog):
                 WHERE content_type = 'fact' 
                 AND posted_date > DATE('now', '-7 days')
                 ORDER BY posted_date DESC
-                LIMIT 10
+                LIMIT 20
             ''') as cursor:
                 rows = await cursor.fetchall()
                 return [row[0] for row in rows]

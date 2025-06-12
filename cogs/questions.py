@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -20,7 +21,7 @@ class QuestionsCog(commands.Cog):
         """Setup Gemini AI"""
         if Config.GEMINI_API_KEY:
             genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-2.0-flash-lite-001')
             self.ai_enabled = True
         else:
             self.model = None
@@ -71,11 +72,30 @@ class QuestionsCog(commands.Cog):
         """Wait until bot is ready"""
         await self.bot.wait_until_ready()
         
-        # Wait until it's the right time (if configured)
-        now = datetime.now()
-        target_time = time(15, 0)  # 3 PM default
+        # Get configured time from any guild, default to 15:00 if none configured
+        configured_time = None
+        for guild in self.bot.guilds:
+            try:
+                config = await self.bot.db.get_guild_config(guild.id)
+                question_time = config.get('question_time')
+                if question_time:
+                    configured_time = question_time
+                    break
+            except Exception:
+                continue
         
-        # Calculate seconds until target time
+        # Parse the time string or use default
+        if configured_time:
+            try:
+                hour, minute = map(int, configured_time.split(':'))
+                target_time = time(hour, minute)
+            except (ValueError, AttributeError):
+                target_time = time(15, 0)  # 3 PM default
+        else:
+            target_time = time(15, 0)  # 3 PM default
+        
+        # Wait until it's the right time
+        now = datetime.now()
         target_datetime = datetime.combine(now.date(), target_time)
         if target_datetime <= now:
             target_datetime = datetime.combine(now.date().replace(day=now.day + 1), target_time)
@@ -98,7 +118,6 @@ class QuestionsCog(commands.Cog):
             ]
             
             prompt = random.choice(prompts)
-            
             # Check for recent questions to avoid repetition
             recent_questions = await self._get_recent_questions()
             if recent_questions:
@@ -109,7 +128,6 @@ class QuestionsCog(commands.Cog):
             )
             
             question = response.text.strip()
-            
             # Basic validation and cleanup
             if len(question) > 300:
                 question = question[:297] + "..."
@@ -149,6 +167,7 @@ class QuestionsCog(commands.Cog):
         return random.choice(questions)
     
     async def _store_recent_content(self, guild_id: int, content: str):
+        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         """Store recently posted content to avoid repetition"""
         import aiosqlite
         async with aiosqlite.connect(self.bot.db.db_file) as db:
@@ -176,7 +195,7 @@ class QuestionsCog(commands.Cog):
                 WHERE content_type = 'question' 
                 AND posted_date > DATE('now', '-7 days')
                 ORDER BY posted_date DESC
-                LIMIT 10
+                LIMIT 20
             ''') as cursor:
                 rows = await cursor.fetchall()
                 return [row[0] for row in rows]
