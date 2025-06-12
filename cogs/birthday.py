@@ -302,6 +302,100 @@ class BirthdayCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
+    @app_commands.command(name="allbirthdays", description="Show all birthdays in chronological order")
+    async def allbirthdays(self, interaction: discord.Interaction):
+        """Show all birthdays in the server sorted chronologically"""
+        import aiosqlite
+        
+        # Get all birthdays for the guild
+        async with aiosqlite.connect(self.bot.db.db_file) as db:
+            async with db.execute(
+                'SELECT user_id, birth_month, birth_day FROM user_birthdays WHERE guild_id = ? ORDER BY birth_month, birth_day',
+                (interaction.guild.id,)
+            ) as cursor:
+                birthdays = await cursor.fetchall()
+        
+        if not birthdays:
+            embed = discord.Embed(
+                title="🎂 All Birthdays",
+                description="No birthdays have been set in this server yet.",
+                color=discord.Color.blue()
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+        
+        # Group birthdays by month
+        monthly_birthdays = {}
+        for user_id, month, day in birthdays:
+            if month not in monthly_birthdays:
+                monthly_birthdays[month] = []
+            
+            user = self.bot.get_user(user_id)
+            if user:  # Only include users that are still accessible
+                monthly_birthdays[month].append({
+                    'user': user,
+                    'day': day,
+                    'month': month
+                })
+        
+        # Create embed
+        embed = discord.Embed(
+            title="🎂 All Birthdays",
+            description="All birthdays in chronological order",
+            color=discord.Color.blue()
+        )
+        
+        # Get current date for highlighting today's birthdays
+        today = datetime.now()
+        
+        # Add each month's birthdays
+        for month in range(1, 13):
+            if month not in monthly_birthdays:
+                continue
+            
+            month_name = calendar.month_name[month]
+            birthday_list = []
+            
+            # Sort by day within the month
+            monthly_birthdays[month].sort(key=lambda x: x['day'])
+            
+            for birthday in monthly_birthdays[month]:
+                user = birthday['user']
+                day = birthday['day']
+                
+                # Check if it's today
+                if month == today.month and day == today.day:
+                    birthday_list.append(f"🎉 **{user.display_name}** - {day} (Today!)")
+                else:
+                    birthday_list.append(f"🎂 **{user.display_name}** - {day}")
+            
+            # Add field for this month (limit to 1024 characters per field)
+            field_value = "\n".join(birthday_list)
+            if len(field_value) > 1024:
+                # Split into multiple fields if too long
+                chunks = []
+                current_chunk = ""
+                for line in birthday_list:
+                    if len(current_chunk + line + "\n") > 1024:
+                        chunks.append(current_chunk.strip())
+                        current_chunk = line + "\n"
+                    else:
+                        current_chunk += line + "\n"
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                
+                for i, chunk in enumerate(chunks):
+                    field_name = f"{month_name}" if i == 0 else f"{month_name} (cont.)"
+                    embed.add_field(name=field_name, value=chunk, inline=True)
+            else:
+                embed.add_field(name=month_name, value=field_value, inline=True)
+        
+        # Add footer with total count
+        total_birthdays = sum(len(birthdays) for birthdays in monthly_birthdays.values())
+        embed.set_footer(text=f"Total: {total_birthdays} birthdays")
+        
+        await interaction.response.send_message(embed=embed)
+    
     # Configuration Commands
     @app_commands.command(name="birthday-config", description="Configure birthday settings (Admin only)")
     @app_commands.describe(
