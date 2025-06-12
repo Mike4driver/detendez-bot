@@ -3,6 +3,9 @@
 .env.local
 .env.production
 *.env
+config.yaml
+config.yml
+config.json
 
 # Database Files
 bot_data.db
@@ -152,4 +155,14 @@ ffprobe.exe
 # Bot specific temporary files
 temp/
 cache/
-user_data_backup/ 
+user_data_backup/
+
+# YouTube cookies and browser data
+youtube_cookies.txt
+cookies.txt
+*.cookies
+browser_cache/
+selenium_cache/
+
+# Node modules (if any)
+node_modules/ 
