@@ -20,7 +20,7 @@ class FactsCog(commands.Cog):
         """Setup Gemini AI"""
         if Config.GEMINI_API_KEY:
             genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-1.5-flash-002')
             self.ai_enabled = True
         else:
             self.model = None

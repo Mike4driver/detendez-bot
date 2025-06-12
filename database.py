@@ -315,7 +315,4 @@ class Database:
         """Calculate XP required for a specific level"""
         if level == 1:
             return 0
-        total_xp = 0
-        for lvl in range(1, level):
-            total_xp += 5 * (lvl ** 2) + 50 * lvl + 100
-        return total_xp 
+        return 5 * ((level - 1) ** 2) + 50 * (level - 1) + 100 

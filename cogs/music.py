@@ -6,12 +6,25 @@ import yt_dlp
 from typing import Optional, Dict, List
 import re
 from datetime import datetime
+import logging
+import os
+import time
 
-# YT-DLP options
+# Import cookie extractor
+try:
+    from utils.cookie_extractor import youtube_cookie_extractor
+    COOKIES_AVAILABLE = True
+except ImportError:
+    COOKIES_AVAILABLE = False
+    print("Warning: Cookie extractor not available. Some YouTube videos may not work.")
+
+logger = logging.getLogger(__name__)
+
+# YT-DLP options - will be updated with cookies
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'extractaudio': True,
-    'audioformat': 'mp3',
+    'audioformat': 'mp3',  
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
@@ -21,7 +34,15 @@ ytdl_format_options = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0'
+    'source_address': '0.0.0.0',
+    # Additional options to avoid bot detection
+    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'referer': 'https://www.youtube.com/',
+    # Skip unavailable fragments
+    'fragment_retries': 10,
+    'skip_unavailable_fragments': True,
+    # Age gate bypass attempts
+    'age_limit': 99,
 }
 
 ffmpeg_options = {
@@ -29,7 +50,51 @@ ffmpeg_options = {
     'options': '-vn'
 }
 
-ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+# Global ytdl instance - will be updated with cookies
+ytdl = None
+
+async def initialize_ytdl():
+    """Initialize yt-dlp with cookies"""
+    global ytdl
+    
+    if COOKIES_AVAILABLE:
+        try:
+            # Test environment first
+            env_test = await youtube_cookie_extractor.test_environment()
+            logger.info(f"Cookie environment: {env_test}")
+            
+            # Extract cookies
+            cookies_file = await youtube_cookie_extractor.extract_cookies()
+            
+            if cookies_file:
+                ytdl_format_options['cookiefile'] = cookies_file
+                logger.info(f"YouTube cookies loaded successfully ({env_test['extraction_method']} method)")
+            else:
+                logger.warning("Could not load YouTube cookies")
+        
+        except Exception as e:
+            logger.error(f"Error loading YouTube cookies: {e}")
+    else:
+        logger.info("Cookie extraction not available, using basic yt-dlp")
+    
+    ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+    return ytdl
+
+async def refresh_ytdl_cookies():
+    """Refresh YouTube cookies when needed"""
+    global ytdl
+    
+    if COOKIES_AVAILABLE:
+        try:
+            cookies_file = await youtube_cookie_extractor.extract_cookies(force_refresh=True)
+            if cookies_file:
+                ytdl_format_options['cookiefile'] = cookies_file
+                ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+                logger.info("YouTube cookies refreshed")
+        except Exception as e:
+            logger.error(f"Error refreshing cookies: {e}")
+    else:
+        logger.warning("Cannot refresh cookies - cookie extraction not available")
 
 class YTDLSource(discord.PCMVolumeTransformer):
     """Audio source for YouTube videos"""
@@ -45,9 +110,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
     
     @classmethod
-    async def create_source(cls, search, *, loop=None, stream=False):
+    async def create_source(cls, search, *, loop=None, stream=False, retry_with_refresh=True):
         """Create audio source from search query or URL"""
         loop = loop or asyncio.get_event_loop()
+        
+        # Ensure ytdl is initialized
+        if ytdl is None:
+            await initialize_ytdl()
         
         try:
             # Extract info
@@ -64,12 +133,35 @@ class YTDLSource(discord.PCMVolumeTransformer):
             return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
         
         except Exception as e:
-            raise Exception(f"Error processing audio: {str(e)}")
+            error_str = str(e).lower()
+            
+            # Check if it's a cookie-related error and we can refresh
+            if (('sign in' in error_str or 'bot' in error_str or 'cookies' in error_str) 
+                and retry_with_refresh and COOKIES_AVAILABLE):
+                logger.warning("YouTube cookie error detected, refreshing cookies...")
+                await refresh_ytdl_cookies()
+                
+                # Retry once with refreshed cookies
+                return await cls.create_source(search, loop=loop, stream=stream, retry_with_refresh=False)
+            
+            # Check for age restriction or other common issues
+            if 'age' in error_str or 'restricted' in error_str:
+                raise Exception(f"Video is age-restricted or region-blocked: {search}")
+            elif 'unavailable' in error_str:
+                raise Exception(f"Video is unavailable: {search}")
+            elif 'private' in error_str:
+                raise Exception(f"Video is private: {search}")
+            else:
+                raise Exception(f"Error processing audio: {str(e)}")
     
     @classmethod
-    async def search_youtube(cls, search, *, loop=None):
+    async def search_youtube(cls, search, *, loop=None, retry_with_refresh=True):
         """Search YouTube and return video info"""
         loop = loop or asyncio.get_event_loop()
+        
+        # Ensure ytdl is initialized
+        if ytdl is None:
+            await initialize_ytdl()
         
         try:
             data = await loop.run_in_executor(
@@ -80,7 +172,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 return data['entries'][0]
             return None
         
-        except Exception:
+        except Exception as e:
+            error_str = str(e).lower()
+            
+            # Check if it's a cookie-related error and we can refresh
+            if (('sign in' in error_str or 'bot' in error_str or 'cookies' in error_str) 
+                and retry_with_refresh and COOKIES_AVAILABLE):
+                logger.warning("YouTube cookie error detected during search, refreshing cookies...")
+                await refresh_ytdl_cookies()
+                
+                # Retry once with refreshed cookies
+                return await cls.search_youtube(search, loop=loop, retry_with_refresh=False)
+            
+            logger.error(f"YouTube search error: {e}")
             return None
 
 class MusicQueue:
@@ -144,6 +248,26 @@ class MusicCog(commands.Cog):
         self.bot = bot
         self.queues: Dict[int, MusicQueue] = {}
         self.inactivity_tasks: Dict[int, asyncio.Task] = {}
+        
+        # Initialize ytdl on cog load
+        asyncio.create_task(self._initialize_ytdl())
+    
+    async def _initialize_ytdl(self):
+        """Initialize ytdl with cookies"""
+        await initialize_ytdl()
+        
+        # Schedule cookie cleanup
+        if COOKIES_AVAILABLE:
+            asyncio.create_task(self._periodic_cookie_cleanup())
+    
+    async def _periodic_cookie_cleanup(self):
+        """Periodically clean up old cookies"""
+        while True:
+            try:
+                await asyncio.sleep(86400)  # 24 hours
+                await youtube_cookie_extractor.cleanup_old_cookies()
+            except Exception as e:
+                logger.error(f"Error in cookie cleanup: {e}")
     
     def get_queue(self, guild_id: int) -> MusicQueue:
         """Get or create queue for guild"""
@@ -154,7 +278,11 @@ class MusicCog(commands.Cog):
     async def join_voice_channel(self, interaction: discord.Interaction):
         """Join user's voice channel"""
         if not interaction.user.voice:
-            await interaction.response.send_message("You must be in a voice channel!", ephemeral=True)
+            # Check if interaction was already deferred
+            if interaction.response.is_done():
+                await interaction.followup.send("You must be in a voice channel!", ephemeral=True)
+            else:
+                await interaction.response.send_message("You must be in a voice channel!", ephemeral=True)
             return None
         
         channel = interaction.user.voice.channel
@@ -227,7 +355,7 @@ class MusicCog(commands.Cog):
                 self.cancel_inactivity_timer(guild_id)
                 
             except Exception as e:
-                print(f"Error playing song: {e}")
+                logger.error(f"Error playing song: {e}")
                 await self.play_next(guild_id)
         else:
             # No more songs, start inactivity timer
@@ -253,11 +381,16 @@ class MusicCog(commands.Cog):
                 # Search YouTube
                 song_data = await YTDLSource.search_youtube(query)
                 if not song_data:
-                    await interaction.followup.send("No results found!")
+                    await interaction.followup.send("❌ No results found! Try a different search term.")
                     return
             else:
                 # Direct URL
                 loop = asyncio.get_event_loop()
+                
+                # Ensure ytdl is initialized
+                if ytdl is None:
+                    await initialize_ytdl()
+                
                 song_data = await loop.run_in_executor(
                     None, lambda: ytdl.extract_info(query, download=False)
                 )
@@ -288,7 +421,49 @@ class MusicCog(commands.Cog):
                 await self.play_next(interaction.guild.id)
                 
         except Exception as e:
-            await interaction.followup.send(f"Error: {str(e)}")
+            error_message = str(e)
+            
+            # Provide helpful error messages
+            if 'sign in' in error_message.lower() or 'bot' in error_message.lower():
+                embed = discord.Embed(
+                    title="⚠️ YouTube Access Issue",
+                    description="YouTube is blocking requests. This may be due to rate limiting or bot detection.",
+                    color=discord.Color.orange()
+                )
+                embed.add_field(
+                    name="What you can do:",
+                    value="• Try again in a few minutes\n• Use a different search term\n• Try a direct YouTube URL",
+                    inline=False
+                )
+                
+                if COOKIES_AVAILABLE:
+                    embed.add_field(
+                        name="Admin Actions:",
+                        value="Use `/refresh_cookies` to update authentication",
+                        inline=False
+                    )
+                
+                await interaction.followup.send(embed=embed)
+                
+                # Try to refresh cookies automatically
+                if COOKIES_AVAILABLE:
+                    try:
+                        await refresh_ytdl_cookies()
+                        await interaction.followup.send("✅ Authentication refreshed! Please try the command again.", ephemeral=True)
+                    except:
+                        pass
+            
+            elif 'age-restricted' in error_message.lower() or 'region-blocked' in error_message.lower():
+                await interaction.followup.send("❌ This video is age-restricted or not available in your region.")
+            
+            elif 'unavailable' in error_message.lower():
+                await interaction.followup.send("❌ This video is unavailable or has been removed.")
+            
+            elif 'private' in error_message.lower():
+                await interaction.followup.send("❌ This video is private and cannot be played.")
+            
+            else:
+                await interaction.followup.send(f"❌ Error: {error_message}")
     
     @app_commands.command(name="queue", description="Show the current music queue")
     async def queue_command(self, interaction: discord.Interaction):
@@ -435,6 +610,77 @@ class MusicCog(commands.Cog):
             guild_id = before.channel.guild.id
             self.queues.pop(guild_id, None)
             self.cancel_inactivity_timer(guild_id)
+    
+    @app_commands.command(name="refresh_cookies", description="Refresh YouTube cookies (Admin only)")
+    async def refresh_cookies(self, interaction: discord.Interaction):
+        """Refresh YouTube cookies manually"""
+        # Check if user has admin permissions
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
+            return
+        
+        if not COOKIES_AVAILABLE:
+            await interaction.response.send_message("❌ Cookie extraction is not available in this environment!", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        try:
+            # Test environment
+            env_test = await youtube_cookie_extractor.test_environment()
+            
+            embed = discord.Embed(
+                title="🔧 Cookie System Status",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Selenium Available", value="✅" if env_test['selenium_available'] else "❌", inline=True)
+            embed.add_field(name="Chrome Available", value="✅" if env_test['chrome_available'] else "❌", inline=True)
+            embed.add_field(name="Method", value=env_test['extraction_method'].title(), inline=True)
+            
+            await interaction.followup.send(embed=embed)
+            
+            # Refresh cookies
+            await refresh_ytdl_cookies()
+            await interaction.followup.send("✅ YouTube cookies refreshed successfully!")
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error refreshing cookies: {str(e)}")
+    
+    @app_commands.command(name="cookie_status", description="Check cookie extraction status (Admin only)")
+    async def cookie_status(self, interaction: discord.Interaction):
+        """Check cookie extraction status"""
+        # Check if user has admin permissions
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
+            return
+        
+        embed = discord.Embed(
+            title="🍪 Cookie System Status",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(name="Cookie Extractor", value="✅ Available" if COOKIES_AVAILABLE else "❌ Not Available", inline=False)
+        
+        if COOKIES_AVAILABLE:
+            try:
+                env_test = await youtube_cookie_extractor.test_environment()
+                embed.add_field(name="Selenium", value="✅ Available" if env_test['selenium_available'] else "❌ Not Available", inline=True)
+                embed.add_field(name="Chrome Browser", value="✅ Available" if env_test['chrome_available'] else "❌ Not Available", inline=True)
+                embed.add_field(name="Extraction Method", value=env_test['extraction_method'].title(), inline=True)
+                
+                cookies_file = youtube_cookie_extractor.get_cookies_file()
+                if cookies_file and os.path.exists(cookies_file):
+                    file_age = int(time.time() - os.path.getmtime(cookies_file))
+                    embed.add_field(name="Cookie File", value=f"✅ {file_age}s old", inline=True)
+                else:
+                    embed.add_field(name="Cookie File", value="❌ Not Found", inline=True)
+                    
+            except Exception as e:
+                embed.add_field(name="Error", value=str(e), inline=False)
+        else:
+            embed.add_field(name="Note", value="Install selenium and webdriver-manager for full functionality", inline=False)
+        
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(MusicCog(bot)) 
