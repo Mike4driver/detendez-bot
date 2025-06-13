@@ -124,11 +124,11 @@ class LevelingCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
     
     @app_commands.command(name="leaderboard", description="Show the server leaderboard")
-    @app_commands.describe(limit="Number of users to show (default: 10, max: 20)")
+    @app_commands.describe(limit="Number of users to show (default: 10, max: 50)")
     async def leaderboard(self, interaction: discord.Interaction, limit: Optional[int] = 10):
         """Show server leaderboard"""
-        if limit > 20:
-            limit = 20
+        if limit > 50:
+            limit = 50
         elif limit < 1:
             limit = 10
         

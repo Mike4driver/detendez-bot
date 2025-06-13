@@ -52,6 +52,7 @@ class DetendezBot(commands.Bot):
             'cogs.facts',
             'cogs.questions',
             'cogs.ai',
+            'cogs.tts',
             'cogs.help'
         ]
         

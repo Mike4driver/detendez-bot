@@ -9,6 +9,13 @@ from datetime import datetime
 import logging
 import os
 import time
+from config import Config
+try:
+    import spotipy
+    from spotipy.oauth2 import SpotifyClientCredentials
+except ImportError:
+    spotipy = None
+    print("Warning: spotipy library not installed; Spotify support disabled.")
 
 # Check for YouTube cookies file
 COOKIES_FILE = 'youtube_cookies.txt'
@@ -48,6 +55,8 @@ ffmpeg_options = {
 
 # Global ytdl instance - will be updated with cookies
 ytdl = None
+
+# Spotify client will be initialized per cog instance using Config
 
 async def initialize_ytdl():
     """Initialize yt-dlp with cookies"""
@@ -234,6 +243,22 @@ class MusicCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
+        # Configure Spotify client
+        if spotipy and Config.SPOTIFY_CLIENT_ID and Config.SPOTIFY_CLIENT_SECRET:
+            try:
+                creds = SpotifyClientCredentials(
+                    client_id=Config.SPOTIFY_CLIENT_ID,
+                    client_secret=Config.SPOTIFY_CLIENT_SECRET
+                )
+                self.spotify = spotipy.Spotify(client_credentials_manager=creds)
+                logger.info("Spotify support enabled")
+            except Exception as e:
+                self.spotify = None
+                logger.warning(f"Failed to initialize Spotify client: {e}")
+        else:
+            self.spotify = None
+            logger.info("Spotify support disabled (missing credentials)")
+
         self.queues: Dict[int, MusicQueue] = {}
         self.inactivity_tasks: Dict[int, asyncio.Task] = {}
         
@@ -338,10 +363,30 @@ class MusicCog(commands.Cog):
             self.start_inactivity_timer(guild_id)
     
     @app_commands.command(name="play", description="Play a song from YouTube")
-    @app_commands.describe(query="YouTube URL or search query")
+    @app_commands.describe(query="YouTube/Spotify URL or search query")
     async def play(self, interaction: discord.Interaction, query: str):
         """Play command"""
         await interaction.response.defer()
+        
+        # Spotify track URL support
+        track_match = re.match(r'(?:https?://open\.spotify\.com/track/|spotify:track:)([A-Za-z0-9]+)', query)
+        if track_match:
+            if not self.spotify:
+                await interaction.followup.send(
+                    "❌ Spotify support is disabled (missing credentials).", ephemeral=True
+                )
+                return
+            track_id = track_match.group(1)
+            try:
+                track = self.spotify.track(track_id)
+                artist = track['artists'][0]['name']
+                title = track['name']
+                query = f"{artist} - {title}"
+            except Exception as e:
+                await interaction.followup.send(
+                    f"❌ Failed to fetch Spotify track info: {e}", ephemeral=True
+                )
+                return
         
         # Ensure voice connection
         voice_client = await self.ensure_voice_connection(interaction)
