@@ -31,74 +31,69 @@ class FactsCog(commands.Cog):
     def cog_unload(self):
         self.daily_fact.cancel()
     
-    @tasks.loop(hours=24)
+    async def _has_posted_today(self, guild_id: int, content_type: str) -> bool:
+        """Check if content of a certain type has been posted today for a guild."""
+        import aiosqlite
+        async with aiosqlite.connect(self.bot.db.db_file) as db:
+            async with db.execute('''
+                SELECT 1 FROM recent_content 
+                WHERE guild_id = ? 
+                AND content_type = ? 
+                AND posted_date = DATE('now')
+                LIMIT 1
+            ''', (guild_id, content_type)) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
+
+    @tasks.loop(minutes=1)
     async def daily_fact(self):
-        """Post daily facts to configured channels"""
+        """Post daily facts to configured channels at the configured time."""
+        now = datetime.now()
+        current_time = time(now.hour, now.minute)
+
         for guild in self.bot.guilds:
             try:
                 config = await self.bot.db.get_guild_config(guild.id)
                 fact_channel_id = config.get('fact_channel')
                 
-                if fact_channel_id:
-                    channel = self.bot.get_channel(fact_channel_id)
-                    if channel:
-                        fact = await self._generate_fact()
-                        if fact:
-                            embed = discord.Embed(
-                                title="🧠 Fact of the Day",
-                                description=fact,
-                                color=discord.Color.blue(),
-                                timestamp=datetime.utcnow()
-                            )
-                            embed.set_footer(text="Daily fact powered by AI")
-                            
-                            try:
-                                await channel.send(embed=embed)
+                if not fact_channel_id:
+                    continue
+
+                fact_time_str = config.get('fact_time', '09:00')
+
+                try:
+                    hour, minute = map(int, fact_time_str.split(':'))
+                    target_time = time(hour, minute)
+                except (ValueError, AttributeError):
+                    target_time = time(9, 0)
+                
+                if current_time == target_time:
+                    if not await self._has_posted_today(guild.id, 'fact'):
+                        channel = self.bot.get_channel(fact_channel_id)
+                        if channel:
+                            fact = await self._generate_fact()
+                            if fact:
+                                embed = discord.Embed(
+                                    title="🧠 Fact of the Day",
+                                    description=fact,
+                                    color=discord.Color.blue(),
+                                    timestamp=datetime.utcnow()
+                                )
+                                embed.set_footer(text="Daily fact powered by AI")
                                 
-                                # Store in recent content to avoid repetition
-                                await self._store_recent_content(guild.id, fact)
-                                
-                            except discord.Forbidden:
-                                pass
-            
+                                try:
+                                    await channel.send(embed=embed)
+                                    await self._store_recent_content(guild.id, fact)
+                                except discord.Forbidden:
+                                    logger.warning(f"No permission in channel {fact_channel_id} for guild {guild.id}")
+
             except Exception as e:
-                print(f"Error posting daily fact for guild {guild.id}: {e}")
+                logger.error(f"Error in daily_fact loop for guild {guild.id}: {e}")
     
     @daily_fact.before_loop
     async def before_daily_fact(self):
         """Wait until bot is ready"""
         await self.bot.wait_until_ready()
-        
-        # Get configured time from any guild, default to 09:00 if none configured
-        configured_time = None
-        for guild in self.bot.guilds:
-            try:
-                config = await self.bot.db.get_guild_config(guild.id)
-                fact_time = config.get('fact_time')
-                if fact_time:
-                    configured_time = fact_time
-                    break
-            except Exception:
-                continue
-        
-        # Parse the time string or use default
-        if configured_time:
-            try:
-                hour, minute = map(int, configured_time.split(':'))
-                target_time = time(hour, minute)
-            except (ValueError, AttributeError):
-                target_time = time(9, 0)  # 9 AM default
-        else:
-            target_time = time(9, 0)  # 9 AM default
-        
-        # Wait until it's the right time
-        now = datetime.now()
-        target_datetime = datetime.combine(now.date(), target_time)
-        if target_datetime <= now:
-            target_datetime = datetime.combine(now.date().replace(day=now.day + 1), target_time)
-        
-        wait_seconds = (target_datetime - now).total_seconds()
-        await asyncio.sleep(wait_seconds)
     
     async def _generate_fact(self) -> Optional[str]:
         """Generate a fun fact using AI"""
@@ -291,13 +286,8 @@ class FactsCog(commands.Cog):
                 elif key == 'fact_time':
                     embed.add_field(name="Daily Fact Time", value=value, inline=True)
             
-            # Note about restart requirement for time changes
             if 'fact_time' in config_updates:
-                embed.add_field(
-                    name="⚠️ Note", 
-                    value="Time changes will take effect after bot restart", 
-                    inline=False
-                )
+                embed.set_footer(text="Time changes will take effect within a minute.")
             
             await interaction.response.send_message(embed=embed)
 
