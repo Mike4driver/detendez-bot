@@ -31,77 +31,70 @@ class QuestionsCog(commands.Cog):
     def cog_unload(self):
         self.daily_question.cancel()
     
-    @tasks.loop(hours=24)
+    async def _has_posted_today(self, guild_id: int, content_type: str) -> bool:
+        """Check if content of a certain type has been posted today for a guild."""
+        import aiosqlite
+        async with aiosqlite.connect(self.bot.db.db_file) as db:
+            async with db.execute('''
+                SELECT 1 FROM recent_content 
+                WHERE guild_id = ? 
+                AND content_type = ? 
+                AND posted_date = DATE('now')
+                LIMIT 1
+            ''', (guild_id, content_type)) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
+
+    @tasks.loop(minutes=1)
     async def daily_question(self):
-        """Post daily questions to configured channels"""
+        """Post daily questions to configured channels at the configured time."""
+        now = datetime.now()
+        current_time = time(now.hour, now.minute)
+
         for guild in self.bot.guilds:
             try:
                 config = await self.bot.db.get_guild_config(guild.id)
                 question_channel_id = config.get('question_channel')
                 
-                if question_channel_id:
-                    channel = self.bot.get_channel(question_channel_id)
-                    if channel:
-                        question = await self._generate_question()
-                        if question:
-                            embed = discord.Embed(
-                                title="🤔 Question of the Day",
-                                description=question,
-                                color=discord.Color.green(),
-                                timestamp=datetime.utcnow()
-                            )
-                            embed.set_footer(text="Daily question powered by AI")
-                            
-                            try:
-                                message = await channel.send(embed=embed)
+                if not question_channel_id:
+                    continue
+
+                question_time_str = config.get('question_time', '15:00')
+                
+                try:
+                    hour, minute = map(int, question_time_str.split(':'))
+                    target_time = time(hour, minute)
+                except (ValueError, AttributeError):
+                    target_time = time(15, 0)
+                
+                if current_time == target_time:
+                    if not await self._has_posted_today(guild.id, 'question'):
+                        channel = self.bot.get_channel(question_channel_id)
+                        if channel:
+                            question = await self._generate_question()
+                            if question:
+                                embed = discord.Embed(
+                                    title="🤔 Question of the Day",
+                                    description=question,
+                                    color=discord.Color.green(),
+                                    timestamp=datetime.utcnow()
+                                )
+                                embed.set_footer(text="Daily question powered by AI")
                                 
-                                # Add thinking emoji reaction to encourage participation
-                                await message.add_reaction('🤔')
-                                
-                                # Store in recent content to avoid repetition
-                                await self._store_recent_content(guild.id, question)
-                                
-                            except discord.Forbidden:
-                                pass
+                                try:
+                                    message = await channel.send(embed=embed)
+                                    await message.add_reaction('🤔')
+                                    await self._store_recent_content(guild.id, question)
+                                except discord.Forbidden:
+                                    logger.warning(f"No permission in channel {question_channel_id} for guild {guild.id}")
             
             except Exception as e:
-                print(f"Error posting daily question for guild {guild.id}: {e}")
+                logger.error(f"Error in daily_question loop for guild {guild.id}: {e}")
     
     @daily_question.before_loop
     async def before_daily_question(self):
         """Wait until bot is ready"""
         await self.bot.wait_until_ready()
-        
-        # Get configured time from any guild, default to 15:00 if none configured
-        configured_time = None
-        for guild in self.bot.guilds:
-            try:
-                config = await self.bot.db.get_guild_config(guild.id)
-                question_time = config.get('question_time')
-                if question_time:
-                    configured_time = question_time
-                    break
-            except Exception:
-                continue
-        
-        # Parse the time string or use default
-        if configured_time:
-            try:
-                hour, minute = map(int, configured_time.split(':'))
-                target_time = time(hour, minute)
-            except (ValueError, AttributeError):
-                target_time = time(15, 0)  # 3 PM default
-        else:
-            target_time = time(15, 0)  # 3 PM default
-        
-        # Wait until it's the right time
-        now = datetime.now()
-        target_datetime = datetime.combine(now.date(), target_time)
-        if target_datetime <= now:
-            target_datetime = datetime.combine(now.date().replace(day=now.day + 1), target_time)
-        
-        wait_seconds = (target_datetime - now).total_seconds()
-        await asyncio.sleep(wait_seconds)
     
     async def _generate_question(self) -> Optional[str]:
         """Generate a thought-provoking question using AI"""
@@ -314,13 +307,8 @@ class QuestionsCog(commands.Cog):
                 elif key == 'question_time':
                     embed.add_field(name="Daily Question Time", value=value, inline=True)
             
-            # Note about restart requirement for time changes
             if 'question_time' in config_updates:
-                embed.add_field(
-                    name="⚠️ Note", 
-                    value="Time changes will take effect after bot restart", 
-                    inline=False
-                )
+                embed.set_footer(text="Time changes will take effect within a minute.")
             
             await interaction.response.send_message(embed=embed)
 
