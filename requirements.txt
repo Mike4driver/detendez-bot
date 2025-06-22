@@ -11,4 +11,5 @@ pytz>=2023.3
 selenium>=4.15.0
 webdriver-manager>=4.0.0
 elevenlabs>=0.2.0
-paramiko>=2.9.0 
+paramiko>=2.9.0
+Pillow>=10.0.0 

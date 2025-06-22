@@ -42,6 +42,7 @@ class Config:
     
     # TTS Defaults
     DEFAULT_TTS_VOICE = "Rachel"  # Default ElevenLabs voice
+    DEFAULT_TTS_MODEL = "eleven_multilingual_v2"  # Default ElevenLabs model
     MAX_TTS_LENGTH = 500  # Maximum characters for TTS
     
     @classmethod

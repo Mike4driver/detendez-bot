@@ -35,19 +35,38 @@ class AICog(commands.Cog):
             )
             return
         try:
-            question = f"Answer the question in a short and concise manner (max 1900 characters). The question is: {question}"
-            response = await asyncio.to_thread(self.model.generate_content, question)
+            # Store the original question for display
+            original_question = question
+            
+            # Create the prompt for the AI
+            ai_prompt = f"Answer the question in a short and concise manner (max 1900 characters). The question is: {question}"
+            response = await asyncio.to_thread(self.model.generate_content, ai_prompt)
             answer = response.text.strip()
+            
             # Truncate if too long for Discord embed
             if len(answer) > 1900:
                 answer = answer[:1897] + "..."
 
             embed = discord.Embed(
                 title="💬 AI Response",
-                description=answer,
                 color=discord.Color.purple(),
                 timestamp=datetime.utcnow()
             )
+            
+            # Add the original question
+            embed.add_field(
+                name="❓ Question",
+                value=original_question[:1024],
+                inline=False
+            )
+            
+            # Add the AI's answer
+            embed.add_field(
+                name="🤖 Answer",
+                value=answer[:1024],
+                inline=False
+            )
+            
             embed.set_footer(text="Powered by AI")
             await interaction.followup.send(embed=embed)
         except Exception as e:
