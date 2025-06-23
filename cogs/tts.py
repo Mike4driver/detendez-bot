@@ -118,7 +118,7 @@ class TTSCog(commands.Cog):
                 voice_id = next(v["voice_id"] for v in self.available_voices if v["name"] == voice_id)
             
             # Generate audio using the ElevenLabs API
-            audio = await asyncio.to_thread(
+            audio_generator = await asyncio.to_thread(
                 self.elevenlabs_client.text_to_speech.convert,
                 text=text,
                 voice_id=voice_id,
@@ -128,7 +128,9 @@ class TTSCog(commands.Cog):
             
             # Save to temporary file
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                temp_file.write(audio)
+                for chunk in audio_generator:
+                    if chunk:
+                        temp_file.write(chunk)
                 temp_file_path = temp_file.name
             
             # Create embed
