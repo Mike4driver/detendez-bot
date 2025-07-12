@@ -54,7 +54,8 @@ class DetendezBot(commands.Bot):
             'cogs.ai',
             'cogs.tts',
             'cogs.quotes',
-            'cogs.help'
+            'cogs.help',
+            'cogs.scheduler'
         ]
         
         for cog in cogs_to_load:

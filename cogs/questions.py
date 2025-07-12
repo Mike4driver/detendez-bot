@@ -107,14 +107,25 @@ class QuestionsCog(commands.Cog):
                 "Create an interesting 'would you rather' or hypothetical question that encourages discussion. Make it fun and appropriate for all ages. Keep it concise (under 250 characters).",
                 "Ask a creative question about dreams, goals, preferences, or opinions that people would enjoy answering. Make it engaging and inclusive. Keep it brief (under 250 characters).",
                 "Generate a philosophical or reflective question about society, technology, or human nature. Make it thought-provoking but accessible. Keep it short (under 250 characters).",
-                "Create a fun question about favorites, experiences, or 'what if' scenarios that sparks conversation. Make it interesting and appropriate for everyone. Keep it under 250 characters."
+                "Create a fun question about favorites, experiences, or 'what if' scenarios that sparks conversation. Make it interesting and appropriate for everyone. Keep it under 250 characters.",
+                "Ask a nostalgic question about childhood, memories, or past experiences that people can relate to and share. Make it warm and inclusive. Keep it under 250 characters.",
+                "Generate a creative question about imagination, storytelling, or fictional scenarios. Make it fun and spark creativity in responses. Keep it concise (under 250 characters).",
+                "Create a question about hobbies, talents, or skills that encourages people to share their interests and learn about others. Make it engaging. Keep it brief (under 250 characters).",
+                "Ask a lighthearted question about food, travel, or cultural experiences that brings people together. Make it appetizing for discussion! Keep it short (under 250 characters).",
+                "Generate a question about problem-solving, decision-making, or life advice that invites wisdom sharing. Make it thoughtful and helpful. Keep it under 250 characters.",
+                "Create a fun icebreaker question about random preferences, quirks, or interesting choices. Make it silly but engaging for all. Keep it concise (under 250 characters).",
+                "Ask a question about creativity, art, music, or self-expression that celebrates different forms of creativity. Make it inspiring. Keep it brief (under 250 characters).",
+                "Generate a community-building question about friendship, teamwork, or social connections. Make it inclusive and relationship-focused. Keep it short (under 250 characters).",
+                "Create a question about learning, knowledge, or curiosity that encourages intellectual discussion. Make it educational but accessible. Keep it under 250 characters.",
+                "Ask a seasonal or timely question related to current events, holidays, or time of year. Make it relevant and engaging for the moment. Keep it concise (under 250 characters).",
+                "Generate a motivational question about challenges, achievements, or overcoming obstacles. Make it uplifting and encouraging. Keep it brief (under 250 characters)."
             ]
             
             prompt = random.choice(prompts)
             # Check for recent questions to avoid repetition
             recent_questions = await self._get_recent_questions()
             if recent_questions:
-                prompt += f"\n\nAvoid these recently posted questions: {'; '.join(recent_questions[:5])}"
+                prompt += f"\n\nAvoid these recently posted questions: {'; '.join(recent_questions)}"
             
             response = await asyncio.to_thread(
                 self.model.generate_content, prompt
@@ -188,7 +199,7 @@ class QuestionsCog(commands.Cog):
                 WHERE content_type = 'question' 
                 AND posted_date > DATE('now', '-7 days')
                 ORDER BY posted_date DESC
-                LIMIT 20
+                LIMIT 50
             ''') as cursor:
                 rows = await cursor.fetchall()
                 return [row[0] for row in rows]
