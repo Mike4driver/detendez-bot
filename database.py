@@ -95,6 +95,30 @@ class Database:
                 )
             ''')
             
+            # Geographic Polls Table
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS geographic_polls (
+                    message_id INTEGER,
+                    guild_id INTEGER,
+                    channel_id INTEGER,
+                    title TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (message_id, guild_id)
+                )
+            ''')
+            
+            # Geographic Selections Table
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS geographic_selections (
+                    user_id INTEGER,
+                    message_id INTEGER,
+                    guild_id INTEGER,
+                    region TEXT,
+                    selected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, message_id, guild_id)
+                )
+            ''')
+            
             await db.commit()
     
     # Leveling System Methods
@@ -298,6 +322,102 @@ class Database:
             )
             
             await db.commit()
+    
+    # Geographic Poll Methods
+    async def add_geographic_poll(self, message_id: int, guild_id: int, title: str, channel_id: int = None):
+        """Add a geographic poll to tracking"""
+        async with aiosqlite.connect(self.db_file) as db:
+            await db.execute('''
+                INSERT INTO geographic_polls (message_id, guild_id, channel_id, title)
+                VALUES (?, ?, ?, ?)
+            ''', (message_id, guild_id, channel_id, title))
+            await db.commit()
+    
+    async def is_geographic_poll(self, message_id: int, guild_id: int) -> bool:
+        """Check if a message is a geographic poll"""
+        async with aiosqlite.connect(self.db_file) as db:
+            async with db.execute(
+                'SELECT 1 FROM geographic_polls WHERE message_id = ? AND guild_id = ?',
+                (message_id, guild_id)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
+    
+    async def get_geographic_poll(self, message_id: int, guild_id: int) -> Optional[Dict[str, Any]]:
+        """Get geographic poll data"""
+        async with aiosqlite.connect(self.db_file) as db:
+            async with db.execute(
+                'SELECT title, channel_id, created_at FROM geographic_polls WHERE message_id = ? AND guild_id = ?',
+                (message_id, guild_id)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return {'title': row[0], 'channel_id': row[1], 'created_at': row[2]}
+                return None
+    
+    async def add_geographic_selection(self, user_id: int, message_id: int, guild_id: int, region: str):
+        """Add a user's geographic selection"""
+        async with aiosqlite.connect(self.db_file) as db:
+            await db.execute('''
+                INSERT OR REPLACE INTO geographic_selections (user_id, message_id, guild_id, region)
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, message_id, guild_id, region))
+            await db.commit()
+    
+    async def remove_geographic_selection(self, user_id: int, message_id: int, guild_id: int, region: str = None):
+        """Remove a user's geographic selection"""
+        async with aiosqlite.connect(self.db_file) as db:
+            if region:
+                await db.execute(
+                    'DELETE FROM geographic_selections WHERE user_id = ? AND message_id = ? AND guild_id = ? AND region = ?',
+                    (user_id, message_id, guild_id, region)
+                )
+            else:
+                await db.execute(
+                    'DELETE FROM geographic_selections WHERE user_id = ? AND message_id = ? AND guild_id = ?',
+                    (user_id, message_id, guild_id)
+                )
+            await db.commit()
+    
+    async def remove_user_geographic_selection(self, user_id: int, message_id: int, guild_id: int):
+        """Remove all geographic selections for a user on a specific poll"""
+        async with aiosqlite.connect(self.db_file) as db:
+            await db.execute(
+                'DELETE FROM geographic_selections WHERE user_id = ? AND message_id = ? AND guild_id = ?',
+                (user_id, message_id, guild_id)
+            )
+            await db.commit()
+    
+    async def get_geographic_results(self, message_id: int, guild_id: int) -> Dict[str, int]:
+        """Get geographic poll results"""
+        async with aiosqlite.connect(self.db_file) as db:
+            async with db.execute(
+                'SELECT region, COUNT(*) FROM geographic_selections WHERE message_id = ? AND guild_id = ? GROUP BY region',
+                (message_id, guild_id)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return {row[0]: row[1] for row in rows}
+    
+    async def get_user_geographic_selections(self, user_id: int, guild_id: int) -> List[Dict[str, Any]]:
+        """Get all geographic selections for a user in a guild"""
+        async with aiosqlite.connect(self.db_file) as db:
+            async with db.execute('''
+                SELECT gs.region, gs.message_id, gp.title, gs.selected_at
+                FROM geographic_selections gs
+                JOIN geographic_polls gp ON gs.message_id = gp.message_id AND gs.guild_id = gp.guild_id
+                WHERE gs.user_id = ? AND gs.guild_id = ?
+                ORDER BY gs.selected_at DESC
+            ''', (user_id, guild_id)) as cursor:
+                rows = await cursor.fetchall()
+                return [
+                    {
+                        'region': row[0],
+                        'message_id': row[1],
+                        'poll_title': row[2],
+                        'selected_at': row[3]
+                    }
+                    for row in rows
+                ]
     
     # Utility Methods
     @staticmethod

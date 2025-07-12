@@ -64,6 +64,12 @@ class HelpCog(commands.Cog):
             inline=True
         )
         
+        embed.add_field(
+            name="🗺️ Geographic Polls",
+            value="`/help geographic` - US region polls",
+            inline=True
+        )
+        
         embed.set_footer(text="Use /help <category> for detailed information about each feature")
         
         await interaction.response.send_message(embed=embed)
@@ -85,6 +91,8 @@ class HelpCog(commands.Cog):
             await self._show_questions_help(interaction)
         elif category in ['config', 'configuration', 'admin']:
             await self._show_config_help(interaction)
+        elif category in ['geographic', 'geography', 'polls', 'region']:
+            await self._show_geographic_help(interaction)
         else:
             embed = discord.Embed(
                 title="❌ Unknown Category",
@@ -389,6 +397,51 @@ class HelpCog(commands.Cog):
             value="All configuration commands require **Administrator** permission.",
             inline=False
         )
+        
+        await interaction.response.send_message(embed=embed)
+    
+    async def _show_geographic_help(self, interaction: discord.Interaction):
+        """Show geographic polls help"""
+        embed = discord.Embed(
+            title="🗺️ Geographic Polls Help",
+            description="Create polls to see where users are from in the US!",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="User Commands",
+            value=(
+                "`/geographic-poll [title] [description]` - Create a geographic poll\n"
+                "`/geographic-results <message_id>` - View poll results\n"
+                "`/my-region` - Check your region selections"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Regions",
+            value=(
+                "🌊 **West Coast** - California, Oregon, Washington\n"
+                "🏙️ **East Coast** - New York, Florida, Maine, etc.\n"
+                "🏔️ **North** - Alaska, Minnesota, North Dakota, etc.\n"
+                "🌵 **South** - Texas, Arizona, Nevada, etc."
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="How it Works",
+            value=(
+                "• Create a poll with `/geographic-poll`\n"
+                "• Users react with their region emoji\n"
+                "• Only one region can be selected per poll\n"
+                "• View results with `/geographic-results`\n"
+                "• Check your selections with `/my-region`"
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="Perfect for understanding your community's geographic diversity!")
         
         await interaction.response.send_message(embed=embed)
 
