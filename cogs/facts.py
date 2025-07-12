@@ -105,7 +105,19 @@ class FactsCog(commands.Cog):
                 "Generate a fascinating and surprising fact about science, history, nature, or space. Make it interesting and educational, suitable for all ages. Keep it under 300 characters.",
                 "Share an amazing fact about animals, geography, technology, or human behavior. Make it engaging and fun to read. Keep it concise (under 300 characters).",
                 "Tell me an incredible fact about the universe, ancient civilizations, or natural phenomena. Make it mind-blowing but easy to understand. Keep it brief (under 300 characters).",
-                "Give me a cool fact about inventions, discoveries, or cultural traditions from around the world. Make it interesting and appropriate for everyone. Keep it short (under 300 characters)."
+                "Give me a cool fact about inventions, discoveries, or cultural traditions from around the world. Make it interesting and appropriate for everyone. Keep it short (under 300 characters).",
+                "Share a surprising fact about food, cooking, or culinary traditions from different cultures. Make it tasty and interesting! Keep it under 300 characters.",
+                "Tell me an amazing fact about the ocean, marine life, or underwater phenomena. Make it deep and fascinating. Keep it concise (under 300 characters).",
+                "Generate a fun fact about language, communication, or how different cultures express themselves. Make it engaging and educational. Keep it brief (under 300 characters).",
+                "Share an incredible fact about the human body, psychology, or how our minds work. Make it mind-blowing but easy to understand. Keep it short (under 300 characters).",
+                "Give me a cool fact about art, music, literature, or creative expression throughout history. Make it inspiring and interesting. Keep it under 300 characters.",
+                "Tell me a fascinating fact about mathematics, numbers, or patterns in nature. Make it surprisingly beautiful and accessible. Keep it concise (under 300 characters).",
+                "Share an amazing fact about weather, climate, or atmospheric phenomena. Make it storm-worthy interesting! Keep it brief (under 300 characters).",
+                "Generate a surprising fact about plants, forests, or botanical wonders. Make it bloom with interest and education. Keep it short (under 300 characters).",
+                "Tell me an incredible fact about sports, games, or entertainment throughout history. Make it fun and engaging. Keep it under 300 characters.",
+                "Share a cool fact about transportation, vehicles, or how humans have traveled through time. Make it a journey worth taking! Keep it concise (under 300 characters).",
+                "Give me a fascinating fact about architecture, engineering marvels, or human construction achievements. Make it structurally amazing. Keep it brief (under 300 characters).",
+                "Tell me an amazing fact about medicine, health, or medical discoveries that changed the world. Make it healing-ly interesting. Keep it short (under 300 characters)."
             ]
             
             prompt = random.choice(prompts)
@@ -113,7 +125,7 @@ class FactsCog(commands.Cog):
             # Check for recent facts to avoid repetition
             recent_facts = await self._get_recent_facts()
             if recent_facts:
-                prompt += f"\n\nAvoid these recently posted facts: {'; '.join(recent_facts[:5])}"
+                prompt += f"\n\nAvoid these recently posted facts: {'; '.join(recent_facts)}"
             
             response = await asyncio.to_thread(
                 self.model.generate_content, prompt
@@ -173,7 +185,7 @@ class FactsCog(commands.Cog):
                 WHERE content_type = 'fact' 
                 AND posted_date > DATE('now', '-7 days')
                 ORDER BY posted_date DESC
-                LIMIT 20
+                LIMIT 50
             ''') as cursor:
                 rows = await cursor.fetchall()
                 return [row[0] for row in rows]
