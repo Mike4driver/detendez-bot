@@ -11,7 +11,8 @@ def check_requirements():
     """Check if all required packages are installed"""
     required_packages = [
         'discord.py', 'aiosqlite', 'yt-dlp', 'PyNaCl', 
-        'python-dotenv', 'aiohttp', 'google-generativeai'
+        'python-dotenv', 'aiohttp', 'google-generativeai',
+        'pytz', 'python-dateutil', 'ics'
     ]
     
     missing_packages = []
