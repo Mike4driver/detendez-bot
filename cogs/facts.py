@@ -167,12 +167,12 @@ class FactsCog(commands.Cog):
             ''', (guild_id, content))
             
             # Clean up old content (keep only last 30 days)
-            await db.execute('''
-                DELETE FROM recent_content 
-                WHERE content_type = 'fact' 
-                AND guild_id = ? 
-                AND posted_date < DATE('now', '-30 days')
-            ''', (guild_id,))
+            # await db.execute('''
+            #     DELETE FROM recent_content 
+            #     WHERE content_type = 'fact' 
+            #     AND guild_id = ? 
+            #     AND posted_date < DATE('now', '-30 days')
+            # ''', (guild_id,))
             
             await db.commit()
     
@@ -183,7 +183,7 @@ class FactsCog(commands.Cog):
             async with db.execute('''
                 SELECT content FROM recent_content 
                 WHERE content_type = 'fact' 
-                AND posted_date > DATE('now', '-7 days')
+                AND posted_date > DATE('now', '-60 days')
                 ORDER BY posted_date DESC
                 LIMIT 50
             ''') as cursor:
