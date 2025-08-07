@@ -56,7 +56,8 @@ class DetendezBot(commands.Bot):
             'cogs.quotes',
             'cogs.help',
             'cogs.scheduler',
-            'cogs.geographic'
+            'cogs.geographic',
+            'cogs.dnd'
         ]
         
         for cog in cogs_to_load:
