@@ -63,6 +63,8 @@ class Database:
                     birthday_channel INTEGER,
                     birthday_role INTEGER,
                     birthday_time TEXT DEFAULT '00:00',
+                    birthday_permanent_channel INTEGER,
+                    birthday_permanent_message INTEGER,
                     -- Fact/Question Config
                     fact_channel INTEGER,
                     fact_time TEXT DEFAULT '09:00',
@@ -119,7 +121,22 @@ class Database:
                 )
             ''')
             
+            # Run migrations for existing databases
+            await self._run_migrations(db)
+            
             await db.commit()
+    
+    async def _run_migrations(self, db):
+        """Run database migrations for existing databases"""
+        # Check if birthday permanent columns exist
+        try:
+            await db.execute('SELECT birthday_permanent_channel FROM guild_config LIMIT 1')
+        except Exception:
+            # Columns don't exist, add them
+            print("Running migration: Adding birthday permanent post columns...")
+            await db.execute('ALTER TABLE guild_config ADD COLUMN birthday_permanent_channel INTEGER')
+            await db.execute('ALTER TABLE guild_config ADD COLUMN birthday_permanent_message INTEGER')
+            print("Migration completed: Birthday permanent post columns added")
     
     # Leveling System Methods
     async def get_user_level_data(self, user_id: int, guild_id: int) -> Optional[Dict[str, Any]]:
