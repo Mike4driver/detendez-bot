@@ -155,6 +155,9 @@ class BirthdayCog(commands.Cog):
             interaction.user.id, interaction.guild.id, month, day
         )
         
+        # Update permanent birthday post if configured
+        await self._update_permanent_post(interaction.guild.id)
+        
         # Format the date nicely
         month_name = calendar.month_name[month]
         embed = discord.Embed(
@@ -294,6 +297,9 @@ class BirthdayCog(commands.Cog):
             )
             await db.commit()
         
+        # Update permanent birthday post if configured
+        await self._update_permanent_post(interaction.guild.id)
+        
         embed = discord.Embed(
             title="🗑️ Birthday Removed",
             description="Your birthday has been removed from this server.",
@@ -396,18 +402,155 @@ class BirthdayCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
     
+    async def _update_permanent_post(self, guild_id: int):
+        """Update the permanent birthday post if configured"""
+        try:
+            config = await self.bot.db.get_guild_config(guild_id)
+            permanent_post_channel_id = config.get('birthday_permanent_channel')
+            permanent_post_message_id = config.get('birthday_permanent_message')
+            
+            if not permanent_post_channel_id:
+                return  # No permanent post configured
+            
+            channel = self.bot.get_channel(permanent_post_channel_id)
+            if not channel:
+                return  # Channel not found
+            
+            # Generate the birthday embed
+            embed = await self._generate_permanent_birthday_embed(guild_id)
+            
+            try:
+                if permanent_post_message_id:
+                    # Try to edit existing message
+                    try:
+                        message = await channel.fetch_message(permanent_post_message_id)
+                        await message.edit(embed=embed)
+                        return
+                    except discord.NotFound:
+                        # Message was deleted, create a new one
+                        pass
+                
+                # Create new message
+                message = await channel.send(embed=embed)
+                
+                # Save the new message ID
+                await self.bot.db.update_guild_config(
+                    guild_id, 
+                    birthday_permanent_message=message.id
+                )
+                
+            except discord.Forbidden:
+                print(f"No permission to update permanent birthday post in guild {guild_id}")
+                
+        except Exception as e:
+            print(f"Error updating permanent birthday post for guild {guild_id}: {e}")
+    
+    async def _generate_permanent_birthday_embed(self, guild_id: int) -> discord.Embed:
+        """Generate the embed for the permanent birthday post"""
+        import aiosqlite
+        
+        # Get all birthdays for the guild
+        async with aiosqlite.connect(self.bot.db.db_file) as db:
+            async with db.execute(
+                'SELECT user_id, birth_month, birth_day FROM user_birthdays WHERE guild_id = ? ORDER BY birth_month, birth_day',
+                (guild_id,)
+            ) as cursor:
+                birthdays = await cursor.fetchall()
+        
+        embed = discord.Embed(
+            title="🎂 Server Birthdays",
+            description="All birthdays in this server, organized by month",
+            color=discord.Color.blue(),
+            timestamp=datetime.utcnow()
+        )
+        
+        if not birthdays:
+            embed.add_field(
+                name="No Birthdays Yet",
+                value="No one has set their birthday yet. Use `/setbirthday` to add yours!",
+                inline=False
+            )
+            return embed
+        
+        # Group birthdays by month
+        monthly_birthdays = {}
+        for user_id, month, day in birthdays:
+            if month not in monthly_birthdays:
+                monthly_birthdays[month] = []
+            
+            user = self.bot.get_user(user_id)
+            if user:  # Only include users that are still accessible
+                monthly_birthdays[month].append({
+                    'user': user,
+                    'day': day,
+                    'month': month
+                })
+        
+        # Get current date for highlighting today's birthdays
+        today = datetime.now()
+        
+        # Add each month's birthdays
+        for month in range(1, 13):
+            if month not in monthly_birthdays:
+                continue
+            
+            month_name = calendar.month_name[month]
+            birthday_list = []
+            
+            # Sort by day within the month
+            monthly_birthdays[month].sort(key=lambda x: x['day'])
+            
+            for birthday in monthly_birthdays[month]:
+                user = birthday['user']
+                day = birthday['day']
+                
+                # Check if it's today
+                if month == today.month and day == today.day:
+                    birthday_list.append(f"🎉 **{user.display_name}** - {day} (Today!)")
+                else:
+                    birthday_list.append(f"🎂 **{user.display_name}** - {day}")
+            
+            # Add field for this month (limit to 1024 characters per field)
+            field_value = "\n".join(birthday_list)
+            if len(field_value) > 1024:
+                # Split into multiple fields if too long
+                chunks = []
+                current_chunk = ""
+                for line in birthday_list:
+                    if len(current_chunk + line + "\n") > 1024:
+                        chunks.append(current_chunk.strip())
+                        current_chunk = line + "\n"
+                    else:
+                        current_chunk += line + "\n"
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                
+                for i, chunk in enumerate(chunks):
+                    field_name = f"{month_name}" if i == 0 else f"{month_name} (cont.)"
+                    embed.add_field(name=field_name, value=chunk, inline=True)
+            else:
+                embed.add_field(name=month_name, value=field_value, inline=True)
+        
+        # Add footer with total count and last updated
+        total_birthdays = sum(len(birthdays) for birthdays in monthly_birthdays.values())
+        embed.set_footer(text=f"Total: {total_birthdays} birthdays • Last updated")
+        
+        return embed
+    
     # Configuration Commands
     @app_commands.command(name="birthday-config", description="Configure birthday settings (Admin only)")
     @app_commands.describe(
         channel="Channel for birthday announcements",
-        role="Role to assign on birthdays (optional)"
+        role="Role to assign on birthdays (optional)",
+        permanent_channel="Channel for permanent birthday post (optional)"
     )
     @app_commands.default_permissions(administrator=True)
     async def birthday_config(
         self,
         interaction: discord.Interaction,
         channel: Optional[discord.TextChannel] = None,
-        role: Optional[discord.Role] = None
+        role: Optional[discord.Role] = None,
+        permanent_channel: Optional[discord.TextChannel] = None
     ):
         """Configure birthday settings"""
         config_updates = {}
@@ -431,6 +574,18 @@ class BirthdayCog(commands.Cog):
                 )
                 return
             config_updates['birthday_role'] = role.id
+        
+        if permanent_channel is not None:
+            # Check permissions for permanent channel
+            if not permanent_channel.permissions_for(interaction.guild.me).send_messages:
+                await interaction.response.send_message(
+                    "I don't have permission to send messages in that permanent channel!",
+                    ephemeral=True
+                )
+                return
+            config_updates['birthday_permanent_channel'] = permanent_channel.id
+            # Clear the old permanent message ID since we're changing channels
+            config_updates['birthday_permanent_message'] = None
         
         if not config_updates:
             # Show current configuration
@@ -458,6 +613,18 @@ class BirthdayCog(commands.Cog):
                 role_text = "None"
             embed.add_field(name="Birthday Role", value=role_text, inline=True)
             
+            # Permanent birthday post
+            permanent_channel_id = config.get('birthday_permanent_channel')
+            if permanent_channel_id:
+                permanent_channel_obj = self.bot.get_channel(permanent_channel_id)
+                permanent_text = permanent_channel_obj.mention if permanent_channel_obj else "Deleted Channel"
+                permanent_message_id = config.get('birthday_permanent_message')
+                if permanent_message_id and permanent_channel_obj:
+                    permanent_text += f" ([Message](https://discord.com/channels/{interaction.guild.id}/{permanent_channel_id}/{permanent_message_id}))"
+            else:
+                permanent_text = "Not configured"
+            embed.add_field(name="Permanent Birthday Post", value=permanent_text, inline=False)
+            
             await interaction.response.send_message(embed=embed)
         else:
             # Update configuration
@@ -475,8 +642,45 @@ class BirthdayCog(commands.Cog):
                 elif key == 'birthday_role':
                     role_obj = interaction.guild.get_role(value)
                     embed.add_field(name="Birthday Role", value=role_obj.mention if role_obj else "Unknown", inline=True)
+                elif key == 'birthday_permanent_channel':
+                    channel_obj = self.bot.get_channel(value)
+                    embed.add_field(name="Permanent Post Channel", value=channel_obj.mention if channel_obj else "Unknown", inline=True)
+            
+            # If we set up a permanent channel, create the initial post
+            if 'birthday_permanent_channel' in config_updates:
+                try:
+                    await self._update_permanent_post(interaction.guild.id)
+                    embed.add_field(name="✅ Success", value="Permanent birthday post created!", inline=False)
+                except Exception as e:
+                    embed.add_field(name="⚠️ Warning", value=f"Could not create permanent post: {str(e)}", inline=False)
             
             await interaction.response.send_message(embed=embed)
+    
+    @app_commands.command(name="refresh-birthday-post", description="Manually refresh the permanent birthday post (Admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def refresh_birthday_post(self, interaction: discord.Interaction):
+        """Manually refresh the permanent birthday post"""
+        config = await self.bot.db.get_guild_config(interaction.guild.id)
+        permanent_channel_id = config.get('birthday_permanent_channel')
+        
+        if not permanent_channel_id:
+            await interaction.response.send_message(
+                "❌ No permanent birthday post is configured. Use `/birthday-config` to set one up.",
+                ephemeral=True
+            )
+            return
+        
+        try:
+            await self._update_permanent_post(interaction.guild.id)
+            await interaction.response.send_message(
+                "✅ Permanent birthday post has been refreshed!",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error refreshing permanent birthday post: {str(e)}",
+                ephemeral=True
+            )
     
     @commands.Cog.listener()
     async def on_member_update(self, before, after):

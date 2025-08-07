@@ -23,7 +23,7 @@ class SchedulerCog(commands.Cog):
         """Setup Gemini AI"""
         if Config.GEMINI_API_KEY:
             genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-2.0-flash-lite-001')
             self.ai_enabled = True
         else:
             self.model = None
