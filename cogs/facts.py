@@ -2,7 +2,7 @@ from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Optional
 import google.generativeai as genai
 from config import Config
@@ -77,7 +77,7 @@ class FactsCog(commands.Cog):
                                     title="🧠 Fact of the Day",
                                     description=fact,
                                     color=discord.Color.blue(),
-                                    timestamp=datetime.utcnow()
+                                    timestamp=datetime.now(timezone.utc)
                                 )
                                 embed.set_footer(text="Daily fact powered by AI")
                                 
@@ -202,7 +202,7 @@ class FactsCog(commands.Cog):
                 title="🧠 Fun Fact",
                 description=fact,
                 color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             embed.set_footer(text="Powered by AI" if self.ai_enabled else "Curated fact")
             

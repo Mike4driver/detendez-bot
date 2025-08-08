@@ -2,7 +2,7 @@ from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Optional
 import google.generativeai as genai
 from config import Config
@@ -77,7 +77,7 @@ class QuestionsCog(commands.Cog):
                                     title="🤔 Question of the Day",
                                     description=question,
                                     color=discord.Color.green(),
-                                    timestamp=datetime.utcnow()
+                                    timestamp=datetime.now(timezone.utc)
                                 )
                                 embed.set_footer(text="Daily question powered by AI")
                                 
@@ -216,7 +216,7 @@ class QuestionsCog(commands.Cog):
                 title="🤔 Discussion Question",
                 description=question,
                 color=discord.Color.green(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             embed.set_footer(text="Powered by AI" if self.ai_enabled else "Curated question")
             

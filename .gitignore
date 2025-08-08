@@ -137,9 +137,6 @@ Icon
 *.tmp
 
 # Test files
-test_*.py
-*_test.py
-tests/
 .pytest_cache/
 .coverage
 htmlcov/

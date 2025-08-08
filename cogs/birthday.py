@@ -73,7 +73,7 @@ class BirthdayCog(commands.Cog):
                     title="🎉 Happy Birthday! 🎉",
                     description=f"Wishing {member.mention} a wonderful birthday!",
                     color=discord.Color.gold(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(timezone.utc)
                 )
                 embed.set_thumbnail(url=member.display_avatar.url)
                 
@@ -461,7 +461,7 @@ class BirthdayCog(commands.Cog):
             title="🎂 Server Birthdays",
             description="All birthdays in this server, organized by month",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         if not birthdays:
