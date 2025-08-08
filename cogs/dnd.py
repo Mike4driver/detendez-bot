@@ -107,49 +107,80 @@ class DnDCog(commands.Cog):
             )
     
     async def _parse_dnd_action(self, action: str) -> Optional[str]:
-        """Use Gemini AI to parse D&D action and determine dice to roll"""
+        """Use Gemini AI (2-step) to parse a D&D action and determine dice to roll.
+        Step 1: Ask the model for a verbose, rule-grounded analysis (not shown to users)
+        Step 2: Ask the model to output ONLY the final dice notation or NO_DICE
+        """
         if not self.ai_enabled:
             return None
-        
+
         try:
-            prompt = f"""
-You are a D&D 5e expert. Given the following D&D action/spell/ability, determine what dice need to be rolled for damage or effects.
+            # Step 1: Obtain detailed analysis
+            analysis_prompt = f"""
+You are a D&D 5e expert rules assistant. Analyze the following action/spell/ability in detail.
+
+Goals for analysis (do NOT provide the final dice notation here):
+- Identify the feature (spell, weapon attack, class feature, smite, etc.) and its base damage/healing dice
+- Consider slot level scaling when explicitly provided (e.g., "at 4th level")
+- Use base level when no slot level is specified
+- Note common 5e defaults (examples, not exhaustive):
+  - Divine Smite: 2d8 at 1st-level slot, +1d8 per slot above 1st; +1d8 vs undead/fiends
+  - Chromatic Orb: 3d8 at 1st-level slot, +1d8 per slot above 1st
+  - Fireball: 8d6 at 3rd-level slot, +1d6 per slot above 3rd
+  - Cure Wounds: 1d8 at 1st-level slot, +1d8 per slot above 1st (healing)
+  - Longsword (1-handed): 1d8, Shortbow: 1d6, Greatsword: 2d6, Greataxe: 1d12
+- If no dice are rolled for the primary effect, conclude that there is NO_DICE
+
+Write a concise but comprehensive rationale referencing rules knowledge.
 
 Action: {action}
-
-Please respond with ONLY the dice notation (e.g., "2d6", "1d8+3", "4d6") that should be rolled for this action. If it's a spell, assume it's cast at the base level unless otherwise specified. If the action doesn't involve dice rolling, respond with "NO_DICE".
-
-Examples:
-- "level 3 smite" → "3d8"
-- "chromatic orb level 1" → "3d8"
-- "chromatic orb level 4" → "6d8"
-- "fireball" → "8d6"
-- "healing word level 1" → "1d4"
-- "sword attack" → "1d8"
-- "shortbow attack" → "1d6"
-- "cantrip fire bolt" → "1d10"
-
-Respond with just the dice notation, nothing else.
 """
-            
-            response = await asyncio.to_thread(
-                self.model.generate_content, prompt
-            )
-            
-            dice_notation = response.text.strip().upper()
-            
-            # Validate the response
-            if dice_notation == "NO_DICE":
+
+            analysis_response = await asyncio.to_thread(self.model.generate_content, analysis_prompt)
+            analysis_text = (analysis_response.text or "").strip()
+
+            # Step 2: Extract ONLY the dice notation (or NO_DICE) using the analysis
+            extraction_prompt = f"""
+From the analysis and action below, output ONLY ONE item:
+- A single standard dice notation in XdY[+/-Z] form (e.g., 1d8, 2d6+3, 4d10-2)
+OR
+- The exact string NO_DICE if no dice are rolled for the primary effect.
+
+Hard constraints:
+- Output must be ONLY the dice notation or NO_DICE. No extra words, no code fences
+- If multiple dice types exist, return the primary effect dice. Do not return compound expressions
+- Assume base slot unless the action explicitly states a slot level
+
+Action: {action}
+Analysis:
+{analysis_text}
+"""
+
+            extract_response = await asyncio.to_thread(self.model.generate_content, extraction_prompt)
+            raw_output = (extract_response.text or "").strip()
+
+            # Sanitize potential formatting
+            cleaned = raw_output.replace("`", "").strip()
+            cleaned = cleaned.splitlines()[0] if "\n" in cleaned else cleaned
+            cleaned_lower = cleaned.lower().strip()
+
+            if cleaned_lower == "no_dice" or cleaned_lower == "no dice":
                 return None
-            
-            # Basic validation of dice notation
-            if not re.match(r'^\d+d\d+([+-]\d+)?$', dice_notation.lower().replace(' ', '')):
-                return None
-            
-            return dice_notation.lower()
-            
+
+            # Strict dice notation validation (single group with optional +/- modifier)
+            simple_pattern = r"^\s*(\d+)d(\d+)([+-]\d+)?\s*$"
+            match = re.match(simple_pattern, cleaned_lower)
+            if not match:
+                # Try to extract the first valid dice token if model added extras
+                token_match = re.search(r"(\d+)d(\d+)([+-]\d+)?", cleaned_lower)
+                if not token_match:
+                    return None
+                cleaned_lower = token_match.group(0)
+
+            return cleaned_lower
+
         except Exception as e:
-            print(f"Error parsing D&D action: {e}")
+            print(f"Error parsing D&D action (two-step): {e}")
             return None
     
     @app_commands.command(name="dnd-action", description="Roll dice for a D&D action, spell, or ability")
@@ -214,6 +245,61 @@ Respond with just the dice notation, nothing else.
                 ephemeral=True
             )
 
+
+    @app_commands.command(name="dnd-help", description="Get D&D 5e guidance about rules, spells, or dice")
+    @app_commands.describe(question="Ask a D&D question (e.g., 'How does Divine Smite scale?', 'What dice for Chromatic Orb at level 4?')")
+    async def dnd_help(self, interaction: discord.Interaction, question: str):
+        """Provide D&D 5e guidance using Gemini AI"""
+        if not self.ai_enabled:
+            await interaction.response.send_message(
+                "❌ **AI Not Available:** Please configure a Gemini API key to use this command.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        try:
+            prompt = (
+                "You are a concise, accurate D&D 5e rules assistant.\n"
+                "Guidelines:\n"
+                "- Answer clearly in 5e terms with brief bullet points when helpful.\n"
+                "- Provide dice notation (e.g., 2d6+3) and short examples where useful.\n"
+                "- Assume base rules. If slot level is unspecified, assume base slot.\n"
+                "- If the answer varies by DM, note common rulings and typical options.\n"
+                "- Only cite official sources by name when reasonably confident (no page numbers).\n"
+                "- Keep it under ~300 words.\n\n"
+                f"User question: {question}\n"
+            )
+
+            response = await asyncio.to_thread(self.model.generate_content, prompt)
+            answer = (response.text or "").strip()
+
+            if not answer:
+                await interaction.followup.send(
+                    "❌ I couldn't generate guidance right now. Please try again in a moment.",
+                    ephemeral=True
+                )
+                return
+
+            # Discord embed description max is 4096 characters
+            if len(answer) > 4000:
+                answer = answer[:3997] + "..."
+
+            embed = discord.Embed(
+                title="📖 D&D Help",
+                description=answer,
+                color=discord.Color.blurple()
+            )
+            embed.set_footer(text="Guidance only — your DM has final say • Powered by AI")
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ **Error:** Unable to answer right now. Please try again later.\n\nDetails: {str(e)}",
+                ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(DnDCog(bot))
