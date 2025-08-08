@@ -32,9 +32,9 @@ class DnDCog(commands.Cog):
         Roll dice based on standard notation (e.g., '2d6+3', '1d20', '4d8-2')
         Returns: (individual_rolls, total, breakdown_string)
         """
-        # Parse dice notation using regex
-        pattern = r'(\d+)d(\d+)([+-]\d+)?'
-        match = re.match(pattern, dice_string.strip().lower().replace(' ', ''))
+        # Parse dice notation using strict full-match regex
+        pattern = r'^(\d+)d(\d+)([+-]\d+)?$'
+        match = re.fullmatch(pattern, dice_string.strip().lower().replace(' ', ''))
         
         if not match:
             raise ValueError(f"Invalid dice notation: {dice_string}")
