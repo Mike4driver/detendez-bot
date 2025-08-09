@@ -41,6 +41,7 @@ class GuildMusicState:
         self.current: Optional[Dict] = None
         self.volume: float = 0.5
         self.announce_channel_id: Optional[int] = None
+        self.last_voice_channel_id: Optional[int] = None
 
     def enqueue(self, item: Dict) -> None:
         self.queue.append(item)
@@ -71,6 +72,7 @@ class MusicCog(commands.Cog):
         self.states: Dict[int, GuildMusicState] = {}
         self._ytdl = build_ytdl()
         self._inactivity_tasks: Dict[int, asyncio.Task] = {}
+        self._voice_locks: Dict[int, asyncio.Lock] = {}
 
     def state(self, guild_id: int) -> GuildMusicState:
         if guild_id not in self.states:
@@ -82,12 +84,59 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("You must be in a voice channel!", ephemeral=True)
             return None
         channel = interaction.user.voice.channel
-        vc = interaction.guild.voice_client
-        if vc and vc.channel != channel:
-            await vc.move_to(channel)
-        elif not vc:
-            vc = await channel.connect()
-        return vc
+        gid = interaction.guild.id
+        try:
+            shard = interaction.guild.shard_id
+        except Exception:
+            shard = None
+        try:
+            bot_id = self.bot.user.id if self.bot.user else None
+        except Exception:
+            bot_id = None
+        logger.info(f"[voice] connect request guild={gid} shard={shard} channel={channel.id} bot_id={bot_id}")
+        lock = self._voice_locks.setdefault(gid, asyncio.Lock())
+        async with lock:
+            vc = interaction.guild.voice_client
+            # If connected to different channel, try moving; otherwise connect with retries
+            for attempt in range(3):
+                try:
+                    if vc and vc.channel != channel:
+                        await vc.move_to(channel)
+                    elif not vc:
+                        logger.info(f"[voice] connecting... attempt={attempt+1}")
+                        vc = await channel.connect(timeout=20.0, reconnect=True, self_deaf=True)
+                    # Wait until handshake completes
+                    ok = await self._wait_voice_ready(vc, timeout=12.0)
+                    if ok:
+                        # Remember last voice channel for re-connects
+                        self.state(gid).last_voice_channel_id = channel.id
+                        logger.info(f"[voice] connected guild={gid} channel={channel.id}")
+                        return vc
+                    # If not ok, force disconnect and retry
+                    try:
+                        await vc.disconnect(force=True)
+                    except Exception:
+                        pass
+                    vc = None
+                except Exception:
+                    # Backoff a bit before retry
+                    await asyncio.sleep(2 + attempt * 2)
+            # Final failure
+            await interaction.followup.send("❌ Failed to join voice channel. Please try again.", ephemeral=True)
+            return None
+
+    async def _wait_voice_ready(self, vc: Optional[discord.VoiceClient], *, timeout: float = 8.0) -> bool:
+        if not vc:
+            return False
+        # Poll is_connected; discord.py voice client sets this after handshake
+        loop = asyncio.get_running_loop()
+        end = loop.time() + timeout
+        while loop.time() < end:
+            # When fully ready, voice WS and UDP are set up
+            if getattr(vc, "is_connected", lambda: False)() and getattr(vc, "channel", None) is not None:
+                return True
+            await asyncio.sleep(0.2)
+        return False
 
     def _schedule_inactivity(self, guild_id: int) -> None:
         if guild_id in self._inactivity_tasks:
@@ -125,9 +174,28 @@ class MusicCog(commands.Cog):
 
     async def _play_next(self, guild_id: int) -> None:
         guild = self.bot.get_guild(guild_id)
-        if not guild or not guild.voice_client:
+        if not guild:
             return
         st = self.state(guild_id)
+        # Ensure voice connection exists before attempting to play
+        if not guild.voice_client or not getattr(guild.voice_client, "is_connected", lambda: False)():
+            # Try to reconnect to last known channel
+            if st.last_voice_channel_id:
+                channel = guild.get_channel(st.last_voice_channel_id)
+                if isinstance(channel, discord.VoiceChannel):
+                    try:
+                        vc = await channel.connect(timeout=10.0, reconnect=True)
+                        ok = await self._wait_voice_ready(vc, timeout=8.0)
+                        if not ok:
+                            try:
+                                await vc.disconnect(force=True)
+                            except Exception:
+                                pass
+                            return
+                    except Exception:
+                        return
+            else:
+                return
         next_item = st.next()
         if not next_item:
             st.current = None
