@@ -17,7 +17,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-class DetendezBot(commands.Bot):
+class DetendezBot(commands.AutoShardedBot):
     """Main bot class with initialization and event handling"""
     
     def __init__(self):
@@ -26,6 +26,7 @@ class DetendezBot(commands.Bot):
         intents.members = True
         intents.voice_states = True
         intents.reactions = True
+        intents.guilds = True
         
         super().__init__(
             command_prefix='!',  # Fallback prefix, mainly using slash commands
@@ -34,6 +35,7 @@ class DetendezBot(commands.Bot):
         )
         
         self.db = Database()
+        self._synced = False  # Ensure tree.sync runs once in sharded mode
         
     async def setup_hook(self):
         """Initialize database and load cogs"""
@@ -67,17 +69,13 @@ class DetendezBot(commands.Bot):
             except Exception as e:
                 logger.error(f"Failed to load {cog}: {e}")
         
-        # Sync slash commands
-        try:
-            synced = await self.tree.sync()
-            logger.info(f"Synced {len(synced)} command(s)")
-        except Exception as e:
-            logger.error(f"Failed to sync commands: {e}")
+        # Defer command sync to on_ready (once), safer for sharded bots
     
     async def on_ready(self):
         """Event fired when bot is ready"""
         logger.info(f'{self.user} has connected to Discord!')
         logger.info(f'Bot is in {len(self.guilds)} guilds')
+        logger.info(f'Bot user id: {self.user.id} • Shard count: {len(self.shards)}')
         
         # Set bot activity
         activity = discord.Activity(
@@ -85,6 +83,18 @@ class DetendezBot(commands.Bot):
             name="for your messages | /help"
         )
         await self.change_presence(activity=activity)
+        
+        # Sync slash commands once across shards
+        if not self._synced:
+            try:
+                synced = await self.tree.sync()
+                logger.info(f"Synced {len(synced)} command(s)")
+                self._synced = True
+            except Exception as e:
+                logger.error(f"Failed to sync commands: {e}")
+
+    async def on_shard_ready(self, shard_id: int):
+        logger.info(f"Shard {shard_id} is ready")
     
     async def on_guild_join(self, guild):
         """Event fired when bot joins a new guild"""
