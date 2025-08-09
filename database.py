@@ -65,6 +65,7 @@ class Database:
                     birthday_time TEXT DEFAULT '00:00',
                     birthday_permanent_channel INTEGER,
                     birthday_permanent_message INTEGER,
+                    admin_role INTEGER,
                     -- Fact/Question Config
                     fact_channel INTEGER,
                     fact_time TEXT DEFAULT '09:00',
@@ -137,6 +138,13 @@ class Database:
             await db.execute('ALTER TABLE guild_config ADD COLUMN birthday_permanent_channel INTEGER')
             await db.execute('ALTER TABLE guild_config ADD COLUMN birthday_permanent_message INTEGER')
             print("Migration completed: Birthday permanent post columns added")
+        # Add admin_role column if missing
+        try:
+            await db.execute('SELECT admin_role FROM guild_config LIMIT 1')
+        except Exception:
+            print("Running migration: Adding admin_role column...")
+            await db.execute('ALTER TABLE guild_config ADD COLUMN admin_role INTEGER')
+            print("Migration completed: admin_role column added")
     
     # Leveling System Methods
     async def get_user_level_data(self, user_id: int, guild_id: int) -> Optional[Dict[str, Any]]:

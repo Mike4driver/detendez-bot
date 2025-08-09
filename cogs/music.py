@@ -40,6 +40,7 @@ class GuildMusicState:
         self.queue: List[Dict] = []
         self.current: Optional[Dict] = None
         self.volume: float = 0.5
+        self.announce_channel_id: Optional[int] = None
 
     def enqueue(self, item: Dict) -> None:
         self.queue.append(item)
@@ -150,6 +151,38 @@ class MusicCog(commands.Cog):
 
         guild.voice_client.play(pcm, after=_after)
 
+        # Announce now playing in the configured channel
+        await self._announce_now_playing(guild_id)
+
+    def _build_now_playing_embed(self, st: GuildMusicState) -> discord.Embed:
+        title = st.current.get('title', 'Unknown') if st.current else 'Unknown'
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=f"**{title}**",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Volume", value=f"{int(st.volume*100)}%", inline=True)
+        url = st.current.get("webpage_url") if st.current else None
+        if url:
+            embed.add_field(name="URL", value=url, inline=False)
+        thumb = st.current.get("thumbnail") if st.current else None
+        if thumb:
+            embed.set_thumbnail(url=thumb)
+        return embed
+
+    async def _announce_now_playing(self, guild_id: int) -> None:
+        st = self.state(guild_id)
+        if not st.current or not st.announce_channel_id:
+            return
+        channel = self.bot.get_channel(st.announce_channel_id)
+        if not isinstance(channel, discord.TextChannel):
+            return
+        try:
+            embed = self._build_now_playing_embed(st)
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
     @app_commands.command(name="play", description="Play a song from YouTube (URL or search query)")
     async def play(self, interaction: discord.Interaction, query: str):
         await interaction.response.defer()
@@ -157,6 +190,10 @@ class MusicCog(commands.Cog):
         vc = await self.ensure_connected(interaction)
         if not vc:
             return
+
+        # Remember channel for now playing announcements
+        st = self.state(interaction.guild.id)
+        st.announce_channel_id = interaction.channel.id if interaction.channel else None
 
         is_url = query.startswith("http://") or query.startswith("https://")
         info = await self._extract_info(query, search=not is_url)
@@ -172,7 +209,6 @@ class MusicCog(commands.Cog):
             "thumbnail": info.get("thumbnail"),
         }
 
-        st = self.state(interaction.guild.id)
         st.enqueue(item)
 
         embed = discord.Embed(title="🎵 Added to Queue", description=f"**{item['title']}**", color=discord.Color.green())
@@ -277,7 +313,9 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="refresh_cookies", description="Refresh YouTube cookies (Admin only)")
     async def refresh_cookies(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
+        config = await self.bot.db.get_guild_config(interaction.guild.id) if hasattr(self.bot, 'db') else {}
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator and not (admin_role_id and interaction.guild.get_role(admin_role_id) in interaction.user.roles):
             await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
             return
         self._ytdl = build_ytdl()
@@ -286,7 +324,9 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="set_cookies", description="Set YouTube cookies (Admin only)")
     @app_commands.describe(cookies="YouTube cookies in Netscape format", attachment="Cookie file to upload (optional)")
     async def set_cookies(self, interaction: discord.Interaction, cookies: Optional[str] = None, attachment: Optional[discord.Attachment] = None):
-        if not interaction.user.guild_permissions.administrator:
+        config = await self.bot.db.get_guild_config(interaction.guild.id) if hasattr(self.bot, 'db') else {}
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator and not (admin_role_id and interaction.guild.get_role(admin_role_id) in interaction.user.roles):
             await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True)
@@ -317,7 +357,9 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="cookie_status", description="Check cookie status (Admin only)")
     async def cookie_status(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
+        config = await self.bot.db.get_guild_config(interaction.guild.id) if hasattr(self.bot, 'db') else {}
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator and not (admin_role_id and interaction.guild.get_role(admin_role_id) in interaction.user.roles):
             await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
             return
         exists = os.path.exists(COOKIES_FILE)
