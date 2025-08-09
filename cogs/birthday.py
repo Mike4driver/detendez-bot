@@ -553,6 +553,14 @@ class BirthdayCog(commands.Cog):
         permanent_channel: Optional[discord.TextChannel] = None
     ):
         """Configure birthday settings"""
+        # Elevate if user has configured admin role
+        config_all = await self.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config_all.get('admin_role') if config_all else None
+        if not interaction.user.guild_permissions.administrator:
+            if not admin_role_id or (interaction.guild.get_role(admin_role_id) not in interaction.user.roles):
+                await interaction.response.send_message("❌ You need Administrator or the configured Admin Role to use this command!", ephemeral=True)
+                return
+
         config_updates = {}
         
         if channel is not None:

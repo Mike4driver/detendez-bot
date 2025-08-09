@@ -73,6 +73,25 @@ class HelpCog(commands.Cog):
         embed.set_footer(text="Use /help <category> for detailed information about each feature")
         
         await interaction.response.send_message(embed=embed)
+
+    def _user_is_admin_or_role(self, interaction: discord.Interaction) -> bool:
+        """Check if user has Administrator or configured admin role."""
+        if interaction.user.guild_permissions.administrator:
+            return True
+        if hasattr(self.bot, 'db'):
+            # Synchronously fetch config in this simple helper (safe for small call)
+            import asyncio as _asyncio
+            try:
+                cfg = _asyncio.get_event_loop().run_until_complete(self.bot.db.get_guild_config(interaction.guild.id))
+            except RuntimeError:
+                # If already in running loop, default to not elevating here
+                return False
+            role_id = cfg.get('admin_role') if cfg else None
+            if role_id:
+                role = interaction.guild.get_role(role_id)
+                if role and role in interaction.user.roles:
+                    return True
+        return False
     
     async def _show_category_help(self, interaction: discord.Interaction, category: str):
         """Show help for a specific category"""
@@ -387,17 +406,31 @@ class HelpCog(commands.Cog):
             value=(
                 "`/birthday-config` - Birthday settings\n"
                 "`/fact-config` - Daily facts settings\n"
-                "`/question-config` - Daily questions settings"
+                "`/question-config` - Daily questions settings\n"
+                "`/admin-role <role>` - Set an Admin Role for bot commands"
             ),
             inline=False
         )
         
         embed.add_field(
             name="Permissions Required",
-            value="All configuration commands require **Administrator** permission.",
+            value="Configuration commands require **Administrator** or the configured **Admin Role**.",
             inline=False
         )
         
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="admin-role", description="Set a role that can use admin bot commands (Admin only)")
+    @app_commands.describe(role="Role to grant admin command access")
+    @app_commands.default_permissions(administrator=True)
+    async def set_admin_role(self, interaction: discord.Interaction, role: discord.Role):
+        # Only server admins can set this; no elevation here to avoid lockout
+        await self.bot.db.update_guild_config(interaction.guild.id, admin_role=role.id)
+        embed = discord.Embed(
+            title="✅ Admin Role Updated",
+            description=f"Set admin role to {role.mention}. Members with this role can use bot admin commands.",
+            color=discord.Color.green()
+        )
         await interaction.response.send_message(embed=embed)
     
     async def _show_geographic_help(self, interaction: discord.Interaction):
