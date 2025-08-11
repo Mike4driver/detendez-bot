@@ -28,41 +28,23 @@ class HelpCog(commands.Cog):
         )
         
         # Add category fields
-        embed.add_field(
-            name="📊 Leveling System",
-            value="`/help leveling` - XP, ranks, leaderboards",
-            inline=True
-        )
+        embed.add_field(name="📊 Leveling", value="`/help leveling`", inline=True)
         
-        embed.add_field(
-            name="⭐ Starboard",
-            value="`/help starboard` - Star messages, highlights",
-            inline=True
-        )
+        embed.add_field(name="⭐ Starboard", value="`/help starboard`", inline=True)
         
-        embed.add_field(
-            name="🎵 Music Bot",
-            value="`/help music` - Play music, queue management",
-            inline=True
-        )
+        embed.add_field(name="🎵 Music", value="`/help music`", inline=True)
         
-        embed.add_field(
-            name="🎂 Birthdays",
-            value="`/help birthday` - Birthday tracking, announcements",
-            inline=True
-        )
+        embed.add_field(name="🎂 Birthdays", value="`/help birthday`", inline=True)
         
-        embed.add_field(
-            name="🧠 Facts & Questions",
-            value="`/help facts` or `/help questions` - Daily content",
-            inline=True
-        )
+        embed.add_field(name="🧠 Facts", value="`/help facts`", inline=True)
+        embed.add_field(name="🤔 Questions", value="`/help questions`", inline=True)
         
-        embed.add_field(
-            name="⚙️ Configuration",
-            value="`/help config` - Admin settings",
-            inline=True
-        )
+        embed.add_field(name="🧙 D&D", value="`/help dnd`", inline=True)
+        embed.add_field(name="🗺️ Geographic", value="`/help geographic`", inline=True)
+        embed.add_field(name="🎤 TTS", value="`/help tts`", inline=True)
+        embed.add_field(name="🖼️ Quotes", value="`/help quotes`", inline=True)
+        embed.add_field(name="🗓️ Scheduler", value="`/help scheduler`", inline=True)
+        embed.add_field(name="⚙️ Config", value="`/help config`", inline=True)
         
         embed.add_field(
             name="🗺️ Geographic Polls",
@@ -108,6 +90,14 @@ class HelpCog(commands.Cog):
             await self._show_facts_help(interaction)
         elif category in ['questions', 'question']:
             await self._show_questions_help(interaction)
+        elif category in ['dnd']:
+            await self._show_dnd_help(interaction)
+        elif category in ['tts']:
+            await self._show_tts_help(interaction)
+        elif category in ['quotes', 'quote']:
+            await self._show_quotes_help(interaction)
+        elif category in ['scheduler', 'schedule']:
+            await self._show_scheduler_help(interaction)
         elif category in ['config', 'configuration', 'admin']:
             await self._show_config_help(interaction)
         elif category in ['geographic', 'geography', 'polls', 'region']:
@@ -279,7 +269,9 @@ class HelpCog(commands.Cog):
             value=(
                 "`/birthday-config` - Configure birthday settings\n"
                 "• Set birthday announcement channel\n"
-                "• Set optional birthday role"
+                "• Set optional birthday role\n"
+                "• Set permanent birthday post channel\n"
+                "`/refresh-birthday-post` - Rebuild the permanent birthday post"
             ),
             inline=False
         )
@@ -370,6 +362,72 @@ class HelpCog(commands.Cog):
         )
         
         await interaction.response.send_message(embed=embed)
+
+    async def _show_dnd_help(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🧙 D&D Tools",
+            description="Dice rolling and action parsing",
+            color=discord.Color.purple()
+        )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`/roll <XdY[+/-Z]>` - Roll dice\n"
+                "`/dnd-action <action>` - Parse an action (e.g., 'level 3 smite') and roll\n"
+                "`/dnd-help <question>` - Get concise 5e guidance"
+            ),
+            inline=False
+        )
+        await interaction.response.send_message(embed=embed)
+
+    async def _show_tts_help(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🎤 Text-to-Speech",
+            description="ElevenLabs-powered TTS",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`/tts <text> [voice] [model]` - Generate TTS audio\n"
+                "`/voices` - List available voices\n"
+                "`/tts-models` - List available models\n"
+                "`/tts-config` - Configure TTS (admin)"
+            ),
+            inline=False
+        )
+        await interaction.response.send_message(embed=embed)
+
+    async def _show_quotes_help(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🖼️ Quotes",
+            description="Generate quote images",
+            color=discord.Color.teal()
+        )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`/quote <text> <@author>` - Quote with member author\n"
+                "`/quote-text <text> <author_name>` - Quote with custom author"
+            ),
+            inline=False
+        )
+        await interaction.response.send_message(embed=embed)
+
+    async def _show_scheduler_help(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🗓️ Scheduler",
+            description="Create Discord scheduled events from natural language",
+            color=discord.Color.dark_teal()
+        )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`/schedule <prompt> [timezone]` - Create an event with GCal/ICS links"
+            ),
+            inline=False
+        )
+        await interaction.response.send_message(embed=embed)
     
     async def _show_config_help(self, interaction: discord.Interaction):
         """Show configuration help"""
@@ -413,8 +471,11 @@ class HelpCog(commands.Cog):
         )
         
         embed.add_field(
-            name="Permissions Required",
-            value="Configuration commands require **Administrator** or the configured **Admin Role**.",
+            name="Permissions",
+            value=(
+                "Admin commands accept **Administrator** or the configured **Admin Role**.\n"
+                "Set with `/admin-role <role>`."
+            ),
             inline=False
         )
         

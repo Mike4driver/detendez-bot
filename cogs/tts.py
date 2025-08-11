@@ -5,7 +5,7 @@ import asyncio
 import tempfile
 import os
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from config import Config
 
@@ -27,6 +27,116 @@ class TTSCog(commands.Cog):
         self.available_voices = []
         self.elevenlabs_client = None
         self.setup_elevenlabs()
+        # Voice connection helpers
+        self._voice_locks: Dict[int, asyncio.Lock] = {}
+        self._inactivity_tasks: Dict[int, asyncio.Task] = {}
+
+    # Reuse the same FFmpeg options as music for robust playback
+    FFMPEG_OPTS = {
+        "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+        "options": "-vn",
+    }
+
+    async def _wait_voice_ready(self, vc: Optional[discord.VoiceClient], *, timeout: float = 8.0) -> bool:
+        if not vc:
+            return False
+        loop = asyncio.get_running_loop()
+        end = loop.time() + timeout
+        while loop.time() < end:
+            if getattr(vc, "is_connected", lambda: False)() and getattr(vc, "channel", None) is not None:
+                return True
+            await asyncio.sleep(0.2)
+        return False
+
+    async def ensure_connected(self, interaction: discord.Interaction) -> Optional[discord.VoiceClient]:
+        """Ensure the bot is connected to the user's voice channel, similar to music cog."""
+        user = interaction.user
+        if not user or not getattr(user, "voice", None) or not user.voice:
+            try:
+                await interaction.followup.send("You must be in a voice channel!", ephemeral=True)
+            except discord.InteractionResponded:
+                pass
+            return None
+        channel = user.voice.channel
+        gid = interaction.guild.id
+
+        lock = self._voice_locks.setdefault(gid, asyncio.Lock())
+        async with lock:
+            vc = interaction.guild.voice_client
+            for attempt in range(3):
+                try:
+                    if vc and vc.channel != channel:
+                        await vc.move_to(channel)
+                    elif not vc:
+                        vc = await channel.connect(timeout=20.0, reconnect=True, self_deaf=True)
+                    ok = await self._wait_voice_ready(vc, timeout=12.0)
+                    if ok:
+                        return vc
+                    try:
+                        await vc.disconnect(force=True)
+                    except Exception:
+                        pass
+                    vc = None
+                except Exception:
+                    await asyncio.sleep(2 + attempt * 2)
+            try:
+                await interaction.followup.send("❌ Failed to join voice channel. Please try again.", ephemeral=True)
+            except discord.InteractionResponded:
+                pass
+            return None
+
+    def _schedule_inactivity(self, guild_id: int) -> None:
+        if guild_id in self._inactivity_tasks:
+            self._inactivity_tasks[guild_id].cancel()
+        self._inactivity_tasks[guild_id] = asyncio.create_task(self._inactivity_timeout(guild_id))
+
+    async def _inactivity_timeout(self, guild_id: int) -> None:
+        await asyncio.sleep(60)
+        guild = self.bot.get_guild(guild_id)
+        if guild and guild.voice_client and not guild.voice_client.is_playing():
+            try:
+                await guild.voice_client.disconnect()
+            except Exception:
+                pass
+        self._inactivity_tasks.pop(guild_id, None)
+
+    async def _after_playback(self, guild_id: int, file_path: Optional[str]) -> None:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.unlink(file_path)
+            except Exception:
+                pass
+        self._schedule_inactivity(guild_id)
+
+    async def _play_file(self, interaction: discord.Interaction, file_path: str) -> bool:
+        """Play a local MP3 file in the user's current voice channel. Returns True if started."""
+        vc = await self.ensure_connected(interaction)
+        if not vc:
+            return False
+
+        # Cancel inactivity while playing
+        task = self._inactivity_tasks.pop(interaction.guild.id, None)
+        if task:
+            task.cancel()
+
+        if vc.is_playing() or vc.is_paused():
+            vc.stop()
+
+        source = discord.FFmpegPCMAudio(file_path, **self.FFMPEG_OPTS)
+        pcm = discord.PCMVolumeTransformer(source)
+
+        def _after(_: Optional[BaseException]) -> None:
+            asyncio.run_coroutine_threadsafe(
+                self._after_playback(interaction.guild.id, file_path), self.bot.loop
+            )
+
+        try:
+            vc.play(pcm, after=_after)
+            return True
+        except Exception:
+            # Ensure cleanup on failure
+            await self._after_playback(interaction.guild.id, file_path)
+            return False
     
     def setup_elevenlabs(self):
         """Setup ElevenLabs API"""
@@ -67,14 +177,16 @@ class TTSCog(commands.Cog):
     @app_commands.describe(
         text="Text to convert to speech",
         voice="Voice ID or name to use (optional)",
-        model="Model to use (optional)"
+        model="Model to use (optional)",
+        play_in_voice="Also play the generated audio in your current voice channel (default: off)"
     )
     async def tts(
         self, 
         interaction: discord.Interaction, 
         text: str,
         voice: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        play_in_voice: bool = False
     ):
         """Generate text-to-speech audio"""
         await interaction.response.defer()
@@ -151,13 +263,21 @@ class TTSCog(commands.Cog):
             embed.add_field(name="Length", value=f"{len(text)} characters", inline=True)
             embed.set_footer(text=f"Generated by {interaction.user.display_name}")
             
-            # Send the audio file
+            # If requested and user is in a voice channel, also play the audio there
+            will_play_in_voice = bool(play_in_voice) and bool(getattr(interaction.user, "voice", None))
+
+            # Send the audio file in chat
             with open(temp_file_path, 'rb') as f:
                 file = discord.File(f, filename="tts_audio.mp3")
                 await interaction.followup.send(embed=embed, file=file)
-            
-            # Clean up temporary file
-            os.unlink(temp_file_path)
+
+            # Play in voice if possible, else clean up immediately
+            if will_play_in_voice:
+                started = await self._play_file(interaction, temp_file_path)
+                if not started and os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+            else:
+                os.unlink(temp_file_path)
             
         except Exception as e:
             logger.error(f"TTS generation error: {e}")
@@ -334,13 +454,21 @@ class TTSCog(commands.Cog):
             embed.add_field(name="Type", value="Streaming", inline=True)
             embed.set_footer(text=f"Generated by {interaction.user.display_name}")
             
-            # Send the audio file
+            # If user is in a voice channel, also play the audio there
+            will_play_in_voice = bool(getattr(interaction.user, "voice", None))
+
+            # Send the audio file in chat
             with open(temp_file_path, 'rb') as f:
                 file = discord.File(f, filename="tts_stream_audio.mp3")
                 await interaction.followup.send(embed=embed, file=file)
-            
-            # Clean up temporary file
-            os.unlink(temp_file_path)
+
+            # Play in voice if possible, else clean up immediately
+            if will_play_in_voice:
+                started = await self._play_file(interaction, temp_file_path)
+                if not started and os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+            else:
+                os.unlink(temp_file_path)
             
         except Exception as e:
             logger.error(f"TTS streaming error: {e}")
