@@ -37,6 +37,11 @@ class TTSCog(commands.Cog):
         "options": "-vn",
     }
 
+    # Local file playback should NOT use reconnect options; keep it simple
+    FFMPEG_FILE_OPTS = {
+        "options": "-vn",
+    }
+
     async def _wait_voice_ready(self, vc: Optional[discord.VoiceClient], *, timeout: float = 8.0) -> bool:
         if not vc:
             return False
@@ -122,7 +127,8 @@ class TTSCog(commands.Cog):
         if vc.is_playing() or vc.is_paused():
             vc.stop()
 
-        source = discord.FFmpegPCMAudio(file_path, **self.FFMPEG_OPTS)
+        # Use local file options (no reconnect flags)
+        source = discord.FFmpegPCMAudio(file_path, **self.FFMPEG_FILE_OPTS)
         pcm = discord.PCMVolumeTransformer(source)
 
         def _after(_: Optional[BaseException]) -> None:
