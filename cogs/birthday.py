@@ -544,7 +544,6 @@ class BirthdayCog(commands.Cog):
         role="Role to assign on birthdays (optional)",
         permanent_channel="Channel for permanent birthday post (optional)"
     )
-    @app_commands.default_permissions(administrator=True)
     async def birthday_config(
         self,
         interaction: discord.Interaction,
@@ -665,7 +664,6 @@ class BirthdayCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
     
     @app_commands.command(name="refresh-birthday-post", description="Manually refresh the permanent birthday post (Admin only)")
-    @app_commands.default_permissions(administrator=True)
     async def refresh_birthday_post(self, interaction: discord.Interaction):
         """Manually refresh the permanent birthday post"""
         # Elevate if user has configured admin role

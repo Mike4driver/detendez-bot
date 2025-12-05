@@ -228,7 +228,6 @@ class StarboardCog(commands.Cog):
         emoji="Emoji to use for starring (default: ⭐)",
         threshold="Number of stars required for starboard"
     )
-    @app_commands.default_permissions(administrator=True)
     async def starboard_config(
         self,
         interaction: discord.Interaction,

@@ -277,7 +277,6 @@ class FactsCog(commands.Cog):
         channel="Channel for daily facts",
         time="Time for daily facts (HH:MM format, 24-hour)"
     )
-    @app_commands.default_permissions(administrator=True)
     async def fact_config(
         self,
         interaction: discord.Interaction,
