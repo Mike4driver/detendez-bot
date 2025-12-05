@@ -489,7 +489,6 @@ class TTSCog(commands.Cog):
         default_voice="Default voice ID or name to use",
         default_model="Default model to use"
     )
-    @app_commands.default_permissions(administrator=True)
     async def tts_config(
         self, 
         interaction: discord.Interaction,

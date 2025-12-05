@@ -297,7 +297,6 @@ class QuestionsCog(commands.Cog):
         channel="Channel for daily questions",
         time="Time for daily questions (HH:MM format, 24-hour)"
     )
-    @app_commands.default_permissions(administrator=True)
     async def question_config(
         self,
         interaction: discord.Interaction,

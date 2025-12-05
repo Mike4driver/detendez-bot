@@ -177,7 +177,6 @@ class LevelingCog(commands.Cog):
     # Admin Commands
     @app_commands.command(name="setlevel", description="Set a user's level (Admin only)")
     @app_commands.describe(user="User to set level for", level="Level to set")
-    @app_commands.default_permissions(administrator=True)
     async def setlevel(self, interaction: discord.Interaction, user: discord.Member, level: int):
         """Set user's level (Admin command)"""
         # Elevate if user has configured admin role
@@ -202,7 +201,6 @@ class LevelingCog(commands.Cog):
     
     @app_commands.command(name="addxp", description="Add XP to a user (Admin only)")
     @app_commands.describe(user="User to add XP to", amount="Amount of XP to add")
-    @app_commands.default_permissions(administrator=True)
     async def addxp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
         """Add XP to a user (Admin command)"""
         config = await self.bot.db.get_guild_config(interaction.guild.id)
@@ -238,7 +236,6 @@ class LevelingCog(commands.Cog):
     
     @app_commands.command(name="removexp", description="Remove XP from a user (Admin only)")
     @app_commands.describe(user="User to remove XP from", amount="Amount of XP to remove")
-    @app_commands.default_permissions(administrator=True)
     async def removexp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
         """Remove XP from a user (Admin command)"""
         config = await self.bot.db.get_guild_config(interaction.guild.id)
@@ -262,7 +259,6 @@ class LevelingCog(commands.Cog):
     
     @app_commands.command(name="resetxp", description="Reset XP for a user or all users (Admin only)")
     @app_commands.describe(user="User to reset (leave empty to reset all)")
-    @app_commands.default_permissions(administrator=True)
     async def resetxp(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Reset XP for user or all users (Admin command)"""
         config = await self.bot.db.get_guild_config(interaction.guild.id)
@@ -306,7 +302,6 @@ class LevelingCog(commands.Cog):
         cooldown="Cooldown between XP awards (seconds)",
         level_up_channel="Channel for level up notifications"
     )
-    @app_commands.default_permissions(administrator=True)
     async def leveling_config(
         self, 
         interaction: discord.Interaction, 

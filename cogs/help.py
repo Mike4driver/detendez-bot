@@ -463,7 +463,9 @@ class HelpCog(commands.Cog):
                 "`/birthday-config` - Birthday settings\n"
                 "`/fact-config` - Daily facts settings\n"
                 "`/question-config` - Daily questions settings\n"
-                "`/admin-role <role>` - Set an Admin Role for bot commands"
+                "`/tts-config` - TTS settings\n"
+                "`/admin-role <role>` - Set an Admin Role for bot commands\n"
+                "`/config` - View all current configurations"
             ),
             inline=False
         )
@@ -490,6 +492,141 @@ class HelpCog(commands.Cog):
             description=f"Set admin role to {role.mention}. Members with this role can use bot admin commands.",
             color=discord.Color.green()
         )
+        await interaction.response.send_message(embed=embed)
+    
+    @app_commands.command(name="config", description="View all bot configurations for this server (Admin only)")
+    async def view_config(self, interaction: discord.Interaction):
+        """View all bot configurations for the server"""
+        # Elevate if user has configured admin role
+        config = await self.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator:
+            if not admin_role_id or (interaction.guild.get_role(admin_role_id) not in interaction.user.roles):
+                await interaction.response.send_message("❌ You need Administrator or the configured Admin Role to use this command!", ephemeral=True)
+                return
+        
+        embed = discord.Embed(
+            title="⚙️ Bot Configuration",
+            description=f"All configured settings for **{interaction.guild.name}**",
+            color=discord.Color.blue(),
+            timestamp=interaction.created_at
+        )
+        
+        # Admin Role
+        admin_role_id = config.get('admin_role')
+        if admin_role_id:
+            admin_role = interaction.guild.get_role(admin_role_id)
+            admin_role_text = admin_role.mention if admin_role else "Deleted Role"
+        else:
+            admin_role_text = "Not configured"
+        embed.add_field(name="🔐 Admin Role", value=admin_role_text, inline=True)
+        
+        # Leveling Configuration
+        xp_per_message = config.get('xp_per_message', 15)
+        xp_cooldown = config.get('xp_cooldown', 60)
+        level_up_channel_id = config.get('level_up_channel')
+        if level_up_channel_id:
+            level_up_channel = self.bot.get_channel(level_up_channel_id)
+            level_up_text = level_up_channel.mention if level_up_channel else "Deleted Channel"
+        else:
+            level_up_text = "Not configured"
+        
+        leveling_value = (
+            f"**XP per Message:** {xp_per_message}\n"
+            f"**Cooldown:** {xp_cooldown}s\n"
+            f"**Level-up Channel:** {level_up_text}"
+        )
+        embed.add_field(name="📊 Leveling", value=leveling_value, inline=False)
+        
+        # Starboard Configuration
+        starboard_channel_id = config.get('starboard_channel')
+        star_threshold = config.get('star_threshold', 3)
+        star_emoji = config.get('star_emoji', '⭐')
+        if starboard_channel_id:
+            starboard_channel = self.bot.get_channel(starboard_channel_id)
+            starboard_text = starboard_channel.mention if starboard_channel else "Deleted Channel"
+        else:
+            starboard_text = "Not configured"
+        
+        starboard_value = (
+            f"**Channel:** {starboard_text}\n"
+            f"**Threshold:** {star_threshold} {star_emoji}\n"
+            f"**Emoji:** {star_emoji}"
+        )
+        embed.add_field(name="⭐ Starboard", value=starboard_value, inline=False)
+        
+        # Birthday Configuration
+        birthday_channel_id = config.get('birthday_channel')
+        birthday_role_id = config.get('birthday_role')
+        birthday_permanent_channel_id = config.get('birthday_permanent_channel')
+        birthday_time = config.get('birthday_time', '00:00')
+        
+        if birthday_channel_id:
+            birthday_channel = self.bot.get_channel(birthday_channel_id)
+            birthday_channel_text = birthday_channel.mention if birthday_channel else "Deleted Channel"
+        else:
+            birthday_channel_text = "Not configured"
+        
+        if birthday_role_id:
+            birthday_role = interaction.guild.get_role(birthday_role_id)
+            birthday_role_text = birthday_role.mention if birthday_role else "Deleted Role"
+        else:
+            birthday_role_text = "Not configured"
+        
+        if birthday_permanent_channel_id:
+            permanent_channel = self.bot.get_channel(birthday_permanent_channel_id)
+            permanent_text = permanent_channel.mention if permanent_channel else "Deleted Channel"
+        else:
+            permanent_text = "Not configured"
+        
+        birthday_value = (
+            f"**Announcement Channel:** {birthday_channel_text}\n"
+            f"**Birthday Role:** {birthday_role_text}\n"
+            f"**Permanent Post Channel:** {permanent_text}\n"
+            f"**Announcement Time:** {birthday_time}"
+        )
+        embed.add_field(name="🎂 Birthdays", value=birthday_value, inline=False)
+        
+        # Facts Configuration
+        fact_channel_id = config.get('fact_channel')
+        fact_time = config.get('fact_time', '09:00')
+        if fact_channel_id:
+            fact_channel = self.bot.get_channel(fact_channel_id)
+            fact_channel_text = fact_channel.mention if fact_channel else "Deleted Channel"
+        else:
+            fact_channel_text = "Not configured"
+        
+        embed.add_field(name="🧠 Daily Facts", value=f"**Channel:** {fact_channel_text}\n**Time:** {fact_time}", inline=True)
+        
+        # Questions Configuration
+        question_channel_id = config.get('question_channel')
+        question_time = config.get('question_time', '15:00')
+        if question_channel_id:
+            question_channel = self.bot.get_channel(question_channel_id)
+            question_channel_text = question_channel.mention if question_channel else "Deleted Channel"
+        else:
+            question_channel_text = "Not configured"
+        
+        embed.add_field(name="🤔 Daily Questions", value=f"**Channel:** {question_channel_text}\n**Time:** {question_time}", inline=True)
+        
+        # TTS Configuration (global, from Config)
+        from config import Config
+        tts_value = (
+            f"**Max Length:** {Config.MAX_TTS_LENGTH} characters\n"
+            f"**Default Voice:** {Config.DEFAULT_TTS_VOICE}\n"
+            f"**Default Model:** {Config.DEFAULT_TTS_MODEL}"
+        )
+        embed.add_field(name="🎤 TTS (Global)", value=tts_value, inline=False)
+        
+        # Music Cookie Status
+        import os
+        cookie_file = "youtube_cookies.txt"
+        cookie_exists = os.path.exists(cookie_file)
+        cookie_status = "✅ Configured" if cookie_exists else "❌ Not configured"
+        embed.add_field(name="🎵 Music Cookies", value=cookie_status, inline=True)
+        
+        embed.set_footer(text="Use individual config commands to modify settings")
+        
         await interaction.response.send_message(embed=embed)
     
     async def _show_geographic_help(self, interaction: discord.Interaction):
