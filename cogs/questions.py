@@ -1,4 +1,3 @@
-from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -8,6 +7,55 @@ import google.generativeai as genai
 from config import Config
 import asyncio
 import random
+import logging
+
+logger = logging.getLogger(__name__)
+
+class RegenerateQuestionView(discord.ui.View):
+    """View with a regenerate button for questions"""
+    
+    def __init__(self, cog, guild_id: int):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.guild_id = guild_id
+    
+    @discord.ui.button(label="Regenerate Question", style=discord.ButtonStyle.secondary, emoji="🔄")
+    async def regenerate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if user is admin or has admin role
+        config = await self.cog.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config.get('admin_role') if config else None
+        is_admin = interaction.user.guild_permissions.administrator
+        has_admin_role = admin_role_id and interaction.guild.get_role(admin_role_id) in interaction.user.roles
+        
+        if not (is_admin or has_admin_role):
+            await interaction.response.send_message(
+                "❌ Only administrators can regenerate questions!",
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.defer()
+        
+        # Generate new question
+        new_question = await self.cog._generate_question()
+        
+        if new_question:
+            embed = discord.Embed(
+                title="🤔 Question of the Day",
+                description=new_question,
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text="Daily question powered by AI • Regenerated")
+            
+            # Update the message
+            await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send("✅ Question regenerated!", ephemeral=True)
+            
+            # Store the new question
+            await self.cog._store_recent_content(self.guild_id, new_question)
+        else:
+            await interaction.followup.send("❌ Failed to generate a new question. Try again.", ephemeral=True)
 
 class QuestionsCog(commands.Cog):
     """Question of the day functionality"""
@@ -81,8 +129,11 @@ class QuestionsCog(commands.Cog):
                                 )
                                 embed.set_footer(text="Daily question powered by AI")
                                 
+                                # Create view with regenerate button
+                                view = RegenerateQuestionView(self, guild.id)
+                                
                                 try:
-                                    message = await channel.send(embed=embed)
+                                    message = await channel.send(embed=embed, view=view)
                                     await message.add_reaction('🤔')
                                     await self._store_recent_content(guild.id, question)
                                 except discord.Forbidden:
@@ -171,8 +222,8 @@ class QuestionsCog(commands.Cog):
         return random.choice(questions)
     
     async def _store_recent_content(self, guild_id: int, content: str):
-        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         """Store recently posted content to avoid repetition"""
+        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         import aiosqlite
         async with aiosqlite.connect(self.bot.db.db_file) as db:
             await db.execute('''

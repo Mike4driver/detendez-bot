@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 class GeographicCog(commands.Cog):
     """Geographic reaction roll system for US regions"""
@@ -93,7 +93,7 @@ class GeographicCog(commands.Cog):
             title=title,
             description=description,
             color=discord.Color.blue(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
         
         # Add region explanations
@@ -161,7 +161,7 @@ class GeographicCog(commands.Cog):
         embed = discord.Embed(
             title=f"📊 Results: {poll_data['title']}",
             color=discord.Color.green(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
         
         total_votes = sum(results.values())

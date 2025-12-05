@@ -4,7 +4,7 @@ from discord import app_commands
 import asyncio
 import google.generativeai as genai
 from config import Config
-from datetime import datetime
+from datetime import datetime, timezone
 
 class AICog(commands.Cog):
     """Interactive AI prompt command"""
@@ -50,7 +50,7 @@ class AICog(commands.Cog):
             embed = discord.Embed(
                 title="💬 AI Response",
                 color=discord.Color.purple(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             
             # Add the original question

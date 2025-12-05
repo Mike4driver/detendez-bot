@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 class LevelingCog(commands.Cog):
@@ -62,7 +62,7 @@ class LevelingCog(commands.Cog):
             title="🎉 Level Up!",
             description=f"{message.author.mention} reached **Level {new_level}**!",
             color=discord.Color.gold(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         embed.set_thumbnail(url=message.author.display_avatar.url)
         
@@ -113,7 +113,7 @@ class LevelingCog(commands.Cog):
         embed = discord.Embed(
             title=f"📊 Rank for {target_user.display_name}",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         embed.set_thumbnail(url=target_user.display_avatar.url)
         embed.add_field(name="Rank", value=f"#{rank}", inline=True)
@@ -148,7 +148,7 @@ class LevelingCog(commands.Cog):
         embed = discord.Embed(
             title=f"📊 {interaction.guild.name} Leaderboard",
             color=discord.Color.gold(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         description = ""
