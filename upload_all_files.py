@@ -9,9 +9,15 @@ import sys
 import stat
 import paramiko
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Optional, Tuple
 import logging
 from getpass import getpass
+import base64
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +39,7 @@ class SFTPUploader:
         
         # Local configuration
         self.local_path = Path.cwd()
+        self.config_file = self.local_path / '.upload_config'
         
         # Files and directories to exclude from upload
         self.exclude_patterns: Set[str] = {
@@ -51,7 +58,25 @@ class SFTPUploader:
             'env',
             '.env',
             'node_modules',
-            '*.log'
+            '*.log',
+            '.upload_config',
+            # Cache files and directories
+            '.cache',
+            '*.cache',
+            'cache',
+            '.pytest_cache',
+            '.mypy_cache',
+            '.ruff_cache',
+            '*.pyc',
+            '*.pyo',
+            '*.pyd',
+            '.coverage',
+            'htmlcov',
+            '.tox',
+            '.eggs',
+            '*.egg-info',
+            'dist',
+            'build'
         }
         
         # SFTP connection
@@ -66,30 +91,97 @@ class SFTPUploader:
         # Check if this is the upload script itself
         if name == 'upload_all_files.py':
             return True
+        
+        # Always exclude the config file regardless of location
+        # Use boundary-aware checks to avoid false matches
+        if name == '.upload_config' or '/.upload_config/' in path_str or path_str.endswith('/.upload_config'):
+            return True
             
         for pattern in self.exclude_patterns:
             if pattern.startswith('*') and pattern.endswith('*'):
-                # Contains pattern
+                # Contains pattern (e.g., *cache*)
                 if pattern[1:-1] in name:
                     return True
             elif pattern.startswith('*'):
-                # Ends with pattern
+                # Ends with pattern (e.g., *.pyc)
                 if name.endswith(pattern[1:]):
                     return True
             elif pattern.endswith('*'):
-                # Starts with pattern
+                # Starts with pattern (e.g., cache*)
                 if name.startswith(pattern[:-1]):
                     return True
             else:
-                # Exact match
-                if name == pattern or path_str.endswith(f'/{pattern}'):
+                # Exact match - check both name and full path
+                if name == pattern or path_str.endswith(f'/{pattern}') or f'/{pattern}/' in path_str:
                     return True
         
         return False
     
+    def load_credentials(self) -> Optional[Tuple[str, str]]:
+        """Load saved credentials from config file"""
+        if not self.config_file.exists():
+            return None
+        
+        try:
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+                username = config.get('username')
+                password_encoded = config.get('password')
+                
+                if username and password_encoded:
+                    # Decode password from base64
+                    password = base64.b64decode(password_encoded.encode()).decode()
+                    return (username, password)
+        except Exception as e:
+            logger.warning(f"Failed to load saved credentials: {str(e)}")
+        
+        return None
+    
+    def save_credentials(self, username: str, password: str):
+        """Save credentials to config file"""
+        try:
+            # Encode password with base64 (simple obfuscation)
+            password_encoded = base64.b64encode(password.encode()).decode()
+            
+            config = {
+                'username': username,
+                'password': password_encoded
+            }
+            
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f)
+            
+            # Set restrictive permissions on config file (owner read/write only)
+            os.chmod(self.config_file, 0o600)
+            logger.info("Credentials saved successfully")
+        except Exception as e:
+            logger.warning(f"Failed to save credentials: {str(e)}")
+    
+    def clear_credentials(self):
+        """Clear saved credentials"""
+        if self.config_file.exists():
+            try:
+                self.config_file.unlink()
+                logger.info("Saved credentials cleared")
+            except Exception as e:
+                logger.warning(f"Failed to clear credentials: {str(e)}")
+    
     def get_credentials(self):
-        """Get username and password from user"""
+        """Get username and password from user or saved config"""
         print(f"Connecting to {self.hostname}:{self.port}")
+        
+        # Try to load saved credentials
+        saved_creds = self.load_credentials()
+        if saved_creds:
+            username, password = saved_creds
+            use_saved = input(f"Use saved credentials for '{username}'? (Y/n): ").lower().strip()
+            if use_saved != 'n':
+                self.username = username
+                self.password = password
+                self.remote_path = f'/home/{self.username}'
+                return True
+        
+        # Prompt for new credentials
         self.username = input("Username: ").strip()
         if not self.username:
             logger.error("Username is required")
@@ -99,6 +191,11 @@ class SFTPUploader:
         if not self.password:
             logger.error("Password is required")
             return False
+        
+        # Ask if user wants to save credentials
+        save_creds = input("Save credentials for future use? (y/N): ").lower().strip()
+        if save_creds == 'y':
+            self.save_credentials(self.username, self.password)
             
         # Update remote path to user's home directory
         self.remote_path = f'/home/{self.username}'
@@ -298,13 +395,21 @@ def main():
             print("Usage:")
             print("  python upload_all_files.py           Upload all files")
             print("  python upload_all_files.py --help    Show this help")
+            print("  python upload_all_files.py --clear   Clear saved credentials")
             print()
             print("This script will:")
-            print("  1. Prompt for SSH credentials")
+            print("  1. Load saved credentials if available (or prompt for new ones)")
             print("  2. Show preview of files to upload")
             print("  3. Upload all files to /home/{username}/ on the server")
             print("  4. Maintain directory structure")
             print("  5. Skip common excluded files (.git, __pycache__, etc.)")
+            print()
+            print("Credentials are saved in .upload_config (excluded from upload)")
+            return
+        elif sys.argv[1] == '--clear':
+            uploader = SFTPUploader()
+            uploader.clear_credentials()
+            print("Saved credentials cleared.")
             return
     
     uploader = SFTPUploader()

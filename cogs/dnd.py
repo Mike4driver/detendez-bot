@@ -291,7 +291,7 @@ Analysis:
                 description=answer,
                 color=discord.Color.blurple()
             )
-            embed.set_footer(text="Guidance only — your DM has final say • Powered by AI")
+            embed.set_footer(text="Guidance only — your DM has final say • Powered by Beanz!")
 
             await interaction.followup.send(embed=embed)
 

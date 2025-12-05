@@ -46,7 +46,7 @@ class RegenerateFactView(discord.ui.View):
                 color=discord.Color.blue(),
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="Daily fact powered by AI • Regenerated")
+            embed.set_footer(text="Daily fact powered by Beanz! • Regenerated")
             
             # Update the message
             await interaction.message.edit(embed=embed, view=self)
@@ -127,7 +127,7 @@ class FactsCog(commands.Cog):
                                     color=discord.Color.blue(),
                                     timestamp=datetime.now(timezone.utc)
                                 )
-                                embed.set_footer(text="Daily fact powered by AI")
+                                embed.set_footer(text="Daily fact powered by Beanz!")
                                 
                                 # Create view with regenerate button
                                 view = RegenerateFactView(self, guild.id)
@@ -255,7 +255,7 @@ class FactsCog(commands.Cog):
                 color=discord.Color.blue(),
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="Powered by AI" if self.ai_enabled else "Curated fact")
+            embed.set_footer(text="Powered by Beanz!" if self.ai_enabled else "Curated fact")
             
             await interaction.followup.send(embed=embed)
         else:

@@ -67,7 +67,7 @@ class AICog(commands.Cog):
                 inline=False
             )
             
-            embed.set_footer(text="Powered by AI")
+            embed.set_footer(text="Powered by Beanz!")
             await interaction.followup.send(embed=embed)
         except Exception as e:
             await interaction.followup.send(
