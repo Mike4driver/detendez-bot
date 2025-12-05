@@ -1,6 +1,6 @@
 # DetendezBot 🤖
 
-A comprehensive multi-feature Discord bot with leveling, starboard, music, birthdays, AI-powered content, D&D tools, geographic polls, quotes, scheduling, TTS, and more — built with Python and discord.py.
+A comprehensive multi-feature Discord bot with leveling, starboard, music, birthdays, AI-powered content, D&D tools, geographic polls, quotes, scheduling, TTS, timestamp conversion, and more — built with Python and discord.py.
 
 ## ✨ Features
 
@@ -42,12 +42,13 @@ A comprehensive multi-feature Discord bot with leveling, starboard, music, birth
 - **Custom Titles**: Create polls with custom descriptions
 
 ### 🧠 AI-Powered Content (Gemini)
-- **Daily Facts**: Auto-generated educational facts with 16 different prompt categories
-- **Daily Questions**: Thought-provoking discussion questions with auto-reactions
+- **Daily Facts**: Auto-generated educational facts with 27 creative prompt categories
+- **Daily Questions**: Thought-provoking discussion questions with 27 varied prompt styles
 - **Interactive Chat**: `/ask` command for custom AI queries
 - **Repetition Avoidance**: Tracks recent content to prevent duplicates
 - **Fallback Content**: Curated facts/questions when AI is unavailable
-- **Content Variety**: Science, history, philosophy, creativity, and more
+- **Enhanced Prompts**: Counter-intuitive facts, ethical dilemmas, alternate history, paradoxes, and more
+- **Creative Variety**: Niche topics, unexpected perspectives, and engaging scenarios
 
 ### 🧙 D&D Tools
 - **Dice Rolling**: Standard notation (1d20, 2d6+3, 4d8-2) with critical hit detection
@@ -77,6 +78,13 @@ A comprehensive multi-feature Discord bot with leveling, starboard, music, birth
 - **Streaming TTS**: Real-time audio generation for lower latency
 - **Voice Management**: List available voices with IDs and names
 - **Length Controls**: Configurable character limits (default: 500)
+
+### ⏰ Timestamp Conversion
+- **Automatic Detection**: Detects time/date patterns in messages and converts to Discord timestamps
+- **Flexible Formats**: Supports "10pm", "3:30", "Dec 5", "12/25", "tomorrow at 10am", and more
+- **Timezone Support**: User-configurable timezones for accurate conversions
+- **Smart Parsing**: Handles combined date/time patterns and relative dates
+- **Interactive Timestamps**: Clickable Discord timestamps that show in user's local time
 
 ### ⚙️ Configuration & Admin
 - **Role-Based Access**: Configurable admin role beyond server administrators
@@ -155,6 +163,7 @@ python main.py
 - D&D: `/roll <XdY[+/-Z]>`, `/dnd-action <action>`, `/dnd-help <question>`
 - Scheduling: `/schedule <prompt> [timezone]`
 - Quotes: `/quote <text> <@author>`, `/quote-text <text> <author_name>`
+- Timestamps: `/set-timezone <timezone>`, `/my-timezone` (automatic conversion in messages)
 
 ### Admin Commands (Administrator or Admin Role)
 - General: `/admin-role <role>` — Set admin role for bot commands
@@ -164,6 +173,8 @@ python main.py
 - Facts & Questions: `/fact-config [channel] [time]`, `/question-config [channel] [time]`
 - TTS: `/tts-config [max_length] [default_voice] [default_model]`
 - Music cookies: `/set_cookies [cookies] [attachment]`, `/refresh_cookies`, `/cookie_status`
+
+**Note**: All admin commands respect the configured admin role set via `/admin-role`. Users with the admin role can use admin commands even without Discord Administrator permissions.
 
 ### Configuration Examples
 - Leveling:
@@ -187,6 +198,10 @@ python main.py
 ```bash
 /tts-config max_length:1000 default_voice:Rachel
 ```
+- Admin Role:
+```bash
+/admin-role @Moderator
+```
 
 ## 🛠️ Development
 
@@ -202,23 +217,32 @@ detendezbot/
 │   ├── starboard.py   # Starboard
 │   ├── music.py       # Music playback
 │   ├── birthday.py    # Birthdays (incl. permanent post)
-│   ├── facts.py       # Daily facts
-│   ├── questions.py   # Daily questions
+│   ├── facts.py       # Daily facts (27 creative prompts)
+│   ├── questions.py   # Daily questions (27 creative prompts)
 │   ├── ai.py          # Interactive AI chat
 │   ├── tts.py         # Text-to-speech
 │   ├── geographic.py  # Geographic reaction polls
 │   ├── quotes.py      # Quote image generator
 │   ├── scheduler.py   # Smart scheduling
 │   ├── dnd.py         # D&D tools (dice, action parser, help)
+│   ├── timestamp.py   # Timestamp conversion
 │   └── help.py        # Help system
 ├── tests/             # Test files
+├── utils/             # Utility modules
 └── README.md
 ```
 
 ### Database Schema
 SQLite tables include:
-- `user_levels`, `starboard_messages`, `user_birthdays`, `guild_config`
-- `recent_content`, `music_queue`, `geographic_polls`, `geographic_selections`
+- `user_levels` — XP and leveling data
+- `starboard_messages` — Starboard message tracking
+- `user_birthdays` — Birthday data
+- `guild_config` — Per-server configuration (leveling, starboard, birthdays, facts, questions, admin_role)
+- `recent_content` — Recent facts/questions to avoid repetition
+- `music_queue` — Music queue state
+- `geographic_polls` — Geographic poll data
+- `geographic_selections` — User geographic selections
+- `user_timezones` — User timezone preferences
 
 ### Adding New Features
 1) Create a new cog in `cogs/`
@@ -235,7 +259,7 @@ SQLite tables include:
 - `LOG_LEVEL` — INFO, DEBUG, WARNING, ERROR
 
 ### Per-Server Settings
-Configurable via slash commands for leveling, starboard, birthdays (incl. permanent post), facts, questions, TTS, and more.
+Configurable via slash commands for leveling, starboard, birthdays (incl. permanent post), facts, questions, TTS, admin role, and more.
 
 ## 🐛 Troubleshooting
 
@@ -244,6 +268,7 @@ Configurable via slash commands for leveling, starboard, birthdays (incl. perman
 3) AI not working — set `GEMINI_API_KEY`, check quota
 4) TTS not working — set `ELEVENLABS_API_KEY`, check limits
 5) Database errors — ensure write permissions; restarting runs migrations
+6) Admin commands not working — verify admin role is set correctly with `/admin-role`
 
 ### Logging
 Logs to console and `bot.log`. Review logs for details.

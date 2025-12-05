@@ -668,7 +668,14 @@ class BirthdayCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def refresh_birthday_post(self, interaction: discord.Interaction):
         """Manually refresh the permanent birthday post"""
+        # Elevate if user has configured admin role
         config = await self.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator:
+            if not admin_role_id or (interaction.guild.get_role(admin_role_id) not in interaction.user.roles):
+                await interaction.response.send_message("❌ You need Administrator or the configured Admin Role to use this command!", ephemeral=True)
+                return
+        
         permanent_channel_id = config.get('birthday_permanent_channel')
         
         if not permanent_channel_id:
