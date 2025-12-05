@@ -59,7 +59,8 @@ class DetendezBot(commands.AutoShardedBot):
             'cogs.help',
             'cogs.scheduler',
             'cogs.geographic',
-            'cogs.dnd'
+            'cogs.dnd',
+            'cogs.timestamp'
         ]
         
         for cog in cogs_to_load:
