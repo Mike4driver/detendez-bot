@@ -35,7 +35,7 @@ class SFTPUploader:
         self.port = int(os.getenv('SFTP_PORT', '22'))
         self.username = None  # Will be prompted
         self.password = None  # Will be prompted
-        self.remote_path = '/home'  # Will be updated based on username
+        self.remote_path = '/home/container'
         
         # Local configuration
         self.local_path = Path.cwd()
@@ -178,7 +178,6 @@ class SFTPUploader:
             if use_saved != 'n':
                 self.username = username
                 self.password = password
-                self.remote_path = f'/home/{self.username}'
                 return True
         
         # Prompt for new credentials
@@ -197,8 +196,6 @@ class SFTPUploader:
         if save_creds == 'y':
             self.save_credentials(self.username, self.password)
             
-        # Update remote path to user's home directory
-        self.remote_path = f'/home/{self.username}'
         return True
     
     def connect(self) -> bool:
@@ -400,7 +397,7 @@ def main():
             print("This script will:")
             print("  1. Load saved credentials if available (or prompt for new ones)")
             print("  2. Show preview of files to upload")
-            print("  3. Upload all files to /home/{username}/ on the server")
+            print("  3. Upload all files to /home/container/ on the server")
             print("  4. Maintain directory structure")
             print("  5. Skip common excluded files (.git, __pycache__, etc.)")
             print()
