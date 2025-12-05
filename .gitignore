@@ -163,3 +163,4 @@ selenium_cache/
 
 # Node modules (if any)
 node_modules/ 
+.upload_config

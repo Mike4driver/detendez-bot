@@ -46,7 +46,7 @@ class RegenerateQuestionView(discord.ui.View):
                 color=discord.Color.green(),
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="Daily question powered by AI • Regenerated")
+            embed.set_footer(text="Daily question powered by Beanz! • Regenerated")
             
             # Update the message
             await interaction.message.edit(embed=embed, view=self)
@@ -127,7 +127,7 @@ class QuestionsCog(commands.Cog):
                                     color=discord.Color.green(),
                                     timestamp=datetime.now(timezone.utc)
                                 )
-                                embed.set_footer(text="Daily question powered by AI")
+                                embed.set_footer(text="Daily question powered by Beanz!")
                                 
                                 # Create view with regenerate button
                                 view = RegenerateQuestionView(self, guild.id)
@@ -269,7 +269,7 @@ class QuestionsCog(commands.Cog):
                 color=discord.Color.green(),
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="Powered by AI" if self.ai_enabled else "Curated question")
+            embed.set_footer(text="Powered by Beanz!" if self.ai_enabled else "Curated question")
             
             message = await interaction.followup.send(embed=embed)
             

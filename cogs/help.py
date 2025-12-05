@@ -291,7 +291,7 @@ class HelpCog(commands.Cog):
         """Show facts system help"""
         embed = discord.Embed(
             title="🧠 Facts System Help",
-            description="Daily interesting facts powered by AI!",
+            description="Daily interesting facts powered by Beanz!",
             color=discord.Color.blue()
         )
         
