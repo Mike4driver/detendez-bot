@@ -56,17 +56,15 @@ class HelpCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
 
-    def _user_is_admin_or_role(self, interaction: discord.Interaction) -> bool:
+    async def _user_is_admin_or_role(self, interaction: discord.Interaction) -> bool:
         """Check if user has Administrator or configured admin role."""
         if interaction.user.guild_permissions.administrator:
             return True
         if hasattr(self.bot, 'db'):
-            # Synchronously fetch config in this simple helper (safe for small call)
-            import asyncio as _asyncio
             try:
-                cfg = _asyncio.get_event_loop().run_until_complete(self.bot.db.get_guild_config(interaction.guild.id))
-            except RuntimeError:
-                # If already in running loop, default to not elevating here
+                cfg = await self.bot.db.get_guild_config(interaction.guild.id)
+            except Exception:
+                # If database call fails, default to not elevating
                 return False
             role_id = cfg.get('admin_role') if cfg else None
             if role_id:

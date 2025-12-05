@@ -1,4 +1,3 @@
-from asyncio.log import logger
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -8,6 +7,55 @@ import google.generativeai as genai
 from config import Config
 import asyncio
 import random
+import logging
+
+logger = logging.getLogger(__name__)
+
+class RegenerateFactView(discord.ui.View):
+    """View with a regenerate button for facts"""
+    
+    def __init__(self, cog, guild_id: int):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.guild_id = guild_id
+    
+    @discord.ui.button(label="Regenerate Fact", style=discord.ButtonStyle.secondary, emoji="🔄")
+    async def regenerate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if user is admin or has admin role
+        config = await self.cog.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config.get('admin_role') if config else None
+        is_admin = interaction.user.guild_permissions.administrator
+        has_admin_role = admin_role_id and interaction.guild.get_role(admin_role_id) in interaction.user.roles
+        
+        if not (is_admin or has_admin_role):
+            await interaction.response.send_message(
+                "❌ Only administrators can regenerate facts!",
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.defer()
+        
+        # Generate new fact
+        new_fact = await self.cog._generate_fact()
+        
+        if new_fact:
+            embed = discord.Embed(
+                title="🧠 Fact of the Day",
+                description=new_fact,
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text="Daily fact powered by AI • Regenerated")
+            
+            # Update the message
+            await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send("✅ Fact regenerated!", ephemeral=True)
+            
+            # Store the new fact
+            await self.cog._store_recent_content(self.guild_id, new_fact)
+        else:
+            await interaction.followup.send("❌ Failed to generate a new fact. Try again.", ephemeral=True)
 
 class FactsCog(commands.Cog):
     """Fact of the day functionality"""
@@ -81,8 +129,11 @@ class FactsCog(commands.Cog):
                                 )
                                 embed.set_footer(text="Daily fact powered by AI")
                                 
+                                # Create view with regenerate button
+                                view = RegenerateFactView(self, guild.id)
+                                
                                 try:
-                                    await channel.send(embed=embed)
+                                    await channel.send(embed=embed, view=view)
                                     await self._store_recent_content(guild.id, fact)
                                 except discord.Forbidden:
                                     logger.warning(f"No permission in channel {fact_channel_id} for guild {guild.id}")
@@ -157,8 +208,8 @@ class FactsCog(commands.Cog):
         return random.choice(facts)
     
     async def _store_recent_content(self, guild_id: int, content: str):
-        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         """Store recently posted content to avoid repetition"""
+        logger.info(f"Storing recent content for guild {guild_id}: {content}")
         import aiosqlite
         async with aiosqlite.connect(self.bot.db.db_file) as db:
             await db.execute('''

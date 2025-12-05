@@ -1,19 +1,44 @@
+# Core Discord Bot Dependencies
 discord.py>=2.3.0
 aiosqlite>=0.19.0
-yt-dlp>=2023.10.13
-PyNaCl>=1.5.0
 python-dotenv>=1.0.0
+PyNaCl>=1.5.0
+
+# Music Bot Dependencies
+yt-dlp>=2023.10.13
 aiohttp>=3.8.0
+
+# AI Features (Google Gemini)
 google-generativeai>=0.3.0
-pytz
-python-dateutil
-ics
-asyncio-mqtt>=0.13.0
-schedule>=1.2.0
+
+# Text-to-Speech (ElevenLabs)
+elevenlabs>=0.2.0
+
+# Image Processing (Quotes)
+Pillow>=10.0.0
+
+# Date/Time Processing
+pytz>=2023.3
+python-dateutil>=2.8.0
+
+# Calendar Integration
+ics>=0.7.2
+
+# Helper Scripts Dependencies
+paramiko>=2.9.0
+requests>=2.31.0
+
+# Web Automation (Optional - for cookie extraction)
 selenium>=4.15.0
 webdriver-manager>=4.0.0
-elevenlabs>=0.2.0
-paramiko>=2.9.0
-Pillow>=10.0.0 
+
+# Testing Dependencies
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
+
+# Note: Some dependencies are optional:
+# - elevenlabs: Only needed for TTS features
+# - google-generativeai: Only needed for AI features (facts, questions, D&D help, scheduling)
+# - selenium & webdriver-manager: Only needed for YouTube cookie extraction
+# - paramiko: Only needed for SFTP deployment scripts
+# - requests: Used by helper scripts

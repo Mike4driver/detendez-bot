@@ -6,7 +6,7 @@ import tempfile
 import os
 import logging
 from typing import Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from config import Config
 
 try:
@@ -256,7 +256,7 @@ class TTSCog(commands.Cog):
                 title="🎤 Text-to-Speech Generated",
                 description=f"**Text:** {text[:100]}{'...' if len(text) > 100 else ''}",
                 color=discord.Color.green(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             
             # Find voice name for display
@@ -314,7 +314,7 @@ class TTSCog(commands.Cog):
             title="🎙️ Available TTS Voices",
             description="Here are the available voices for text-to-speech:",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         # Split voices into chunks to avoid embed field limits
@@ -346,7 +346,7 @@ class TTSCog(commands.Cog):
             title="🤖 Available TTS Models",
             description="Here are the available models for text-to-speech:",
             color=discord.Color.purple(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         embed.add_field(
@@ -447,7 +447,7 @@ class TTSCog(commands.Cog):
                 title="🎤 Streaming TTS Generated",
                 description=f"**Text:** {text[:100]}{'...' if len(text) > 100 else ''}",
                 color=discord.Color.gold(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             
             # Find voice name for display
@@ -553,7 +553,7 @@ class TTSCog(commands.Cog):
             embed = discord.Embed(
                 title="⚙️ Current TTS Configuration",
                 color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             embed.add_field(name="Max Length", value=f"{Config.MAX_TTS_LENGTH} characters", inline=True)
             embed.add_field(name="Default Voice", value=Config.DEFAULT_TTS_VOICE, inline=True)
@@ -567,7 +567,7 @@ class TTSCog(commands.Cog):
         embed = discord.Embed(
             title="✅ TTS Configuration Updated",
             color=discord.Color.green(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         for key, value in updates.items():
