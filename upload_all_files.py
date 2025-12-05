@@ -59,6 +59,7 @@ class SFTPUploader:
             '.env',
             'node_modules',
             '*.log',
+            'bot_data.db',
             '.upload_config',
             # Cache files and directories
             '.cache',

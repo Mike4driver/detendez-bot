@@ -498,6 +498,14 @@ class TTSCog(commands.Cog):
         default_model: Optional[str] = None
     ):
         """Configure TTS settings (Admin command)"""
+        # Elevate if user has configured admin role
+        config = await self.bot.db.get_guild_config(interaction.guild.id)
+        admin_role_id = config.get('admin_role') if config else None
+        if not interaction.user.guild_permissions.administrator:
+            if not admin_role_id or (interaction.guild.get_role(admin_role_id) not in interaction.user.roles):
+                await interaction.response.send_message("❌ You need Administrator or the configured Admin Role to use this command!", ephemeral=True)
+                return
+        
         if not self.tts_enabled:
             await interaction.response.send_message(
                 "❌ Text-to-speech is disabled. Please configure ELEVENLABS_API_KEY.",
