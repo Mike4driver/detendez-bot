@@ -122,6 +122,14 @@ class Database:
                 )
             ''')
             
+            # User Timezones Table
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS user_timezones (
+                    user_id INTEGER PRIMARY KEY,
+                    timezone TEXT NOT NULL
+                )
+            ''')
+            
             # Run migrations for existing databases
             await self._run_migrations(db)
             
@@ -443,6 +451,29 @@ class Database:
                     }
                     for row in rows
                 ]
+    
+    # Timezone Methods
+    async def get_user_timezone(self, user_id: int) -> Optional[str]:
+        """Get user's timezone"""
+        async with aiosqlite.connect(self.db_file) as db:
+            async with db.execute(
+                'SELECT timezone FROM user_timezones WHERE user_id = ?',
+                (user_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return row[0]
+                return None
+    
+    async def set_user_timezone(self, user_id: int, timezone: str):
+        """Set user's timezone"""
+        async with aiosqlite.connect(self.db_file) as db:
+            await db.execute('''
+                INSERT INTO user_timezones (user_id, timezone)
+                VALUES (?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET timezone = ?
+            ''', (user_id, timezone, timezone))
+            await db.commit()
     
     # Utility Methods
     @staticmethod
