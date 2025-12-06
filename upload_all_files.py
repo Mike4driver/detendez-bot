@@ -35,7 +35,7 @@ class SFTPUploader:
         self.port = int(os.getenv('SFTP_PORT', '22'))
         self.username = None  # Will be prompted
         self.password = None  # Will be prompted
-        self.remote_path = '/home/container'
+        self.remote_path = ''
         
         # Local configuration
         self.local_path = Path.cwd()
@@ -398,7 +398,7 @@ def main():
             print("This script will:")
             print("  1. Load saved credentials if available (or prompt for new ones)")
             print("  2. Show preview of files to upload")
-            print("  3. Upload all files to /home/container/ on the server")
+            print("  3. Upload all files to / on the server")
             print("  4. Maintain directory structure")
             print("  5. Skip common excluded files (.git, __pycache__, etc.)")
             print()
