@@ -153,33 +153,33 @@ class FactsCog(commands.Cog):
         
         try:
             prompts = [
-                "Share a counter-intuitive fact that challenges a common assumption. The fact should make people say 'wait, really?' and question what they thought they knew. Avoid well-known facts like 'honey never spoils' or 'octopuses have three hearts'. Focus on something obscure but verifiable.",
-                "Reveal a fact about etymology or word origins that explains something unexpected about language. Choose a word with a surprising history that reveals hidden connections or cultural shifts. Make it specific and fascinating.",
-                "Tell me about a failed invention or discovery that was ahead of its time or failed for an interesting reason. Focus on something obscure but significant. Explain why it didn't catch on in a way that reveals something about history or human nature.",
-                "Share a fact about animal behavior that seems bizarre or counterintuitive. Choose something specific about a particular species that challenges assumptions about how animals work. Avoid common examples like 'dolphins are smart'.",
-                "Reveal a historical misconception - something people commonly believe about history that's actually wrong. Make it specific and surprising. Help correct a widespread misunderstanding with an interesting backstory.",
-                "Tell me about an accidental discovery that changed the world. Focus on something lesser-known but impactful. Explain the serendipitous circumstances in a way that makes the discovery feel inevitable yet surprising.",
-                "Share a fact about the human body that seems impossible but is true. Choose something specific and counterintuitive about anatomy, physiology, or psychology. Make it something that makes people check their own bodies.",
-                "Reveal a fact about a weird law, regulation, or legal oddity from history or around the world. Make it specific and explain the context that made it seem reasonable at the time. Avoid overly common examples.",
-                "Tell me about a linguistic oddity - something strange about how language works, untranslatable words, or language quirks. Make it specific and reveal how language shapes thought in unexpected ways.",
-                "Share a fact about scale comparisons that puts things in perspective in a mind-blowing way. Compare sizes, times, distances, or quantities in ways that reveal hidden truths. Make it specific and visual.",
-                "Reveal a fact about a natural phenomenon that seems magical but has a scientific explanation. Choose something specific and lesser-known. Make the explanation as fascinating as the phenomenon itself.",
-                "Tell me about an obscure historical event or figure that had massive consequences but is rarely discussed. Make it specific and explain the ripple effects. Help people see how history turns on forgotten details.",
-                "Share a fact about food, cooking, or culinary history that reveals something unexpected about culture, science, or human behavior. Make it specific and avoid common food facts. Focus on something that makes people reconsider what they eat.",
-                "Reveal a fact about technology or engineering that seems impossible but is true. Choose something specific about how something works that challenges assumptions. Make it accessible but mind-blowing.",
-                "Tell me about a paradox or logical puzzle that exists in the real world (not just theoretical). Explain a situation where reality seems to contradict itself. Make it specific and verifiable.",
-                "Share a fact about space, astronomy, or the universe that puts human existence in perspective. Choose something specific and mind-boggling about scale, time, or cosmic phenomena. Make it humbling and awe-inspiring.",
-                "Reveal a fact about a cultural practice, tradition, or custom from a specific place/time that seems strange but makes perfect sense in context. Make it specific and help people understand different worldviews.",
-                "Tell me about a 'butterfly effect' moment - a small, seemingly insignificant event that had massive historical consequences. Make it specific and trace the unexpected connections. Show how tiny details change everything.",
-                "Share a fact about mathematics or patterns in nature that reveals hidden beauty or order. Choose something specific and visual that makes abstract concepts tangible. Make it surprising and elegant.",
-                "Reveal a fact about psychology or human behavior that explains something we all experience but rarely think about. Make it specific and help people understand themselves better. Avoid generic psychology facts.",
-                "Tell me about an edge case or exception to a general rule in science, nature, or human behavior. Find something that 'breaks' common assumptions. Make it specific and reveal how reality is more complex than we think.",
-                "Share a fact about the ocean, marine life, or underwater phenomena that seems impossible. Choose something specific and lesser-known. Make it reveal how much we still don't know about the deep sea.",
-                "Reveal a fact about time, perception, or how we experience reality that challenges assumptions. Make it specific and make people question their own experience of time or consciousness.",
-                "Tell me about a fact that connects seemingly unrelated things in an unexpected way. Reveal hidden connections between history, science, culture, or nature. Make it specific and surprising.",
-                "Share a fact about a 'what could have been' moment - an invention, discovery, or historical path that almost happened but didn't. Make it specific and explain the alternate timeline that almost was.",
-                "Reveal a fact about survival, adaptation, or evolution that seems impossible but is true. Choose something specific about how life finds a way in extreme circumstances. Make it awe-inspiring and specific.",
-                "Tell me about a fact that reveals something hidden in plain sight - something we see every day but don't understand. Make it specific and make people look at the world differently. Focus on something mundane made fascinating."
+                "Share a counter-intuitive fact that challenges a common assumption. The fact should make people say 'wait, really?' and question what they thought they knew. Avoid well-known facts like 'honey never spoils' or 'octopuses have three hearts'. Focus on something obscure but verifiable. Keep it concise and under 250 characters.",
+                "Reveal a fact about etymology or word origins that explains something unexpected about language. Choose a word with a surprising history that reveals hidden connections or cultural shifts. Make it specific and fascinating. Keep it concise and under 250 characters.",
+                "Tell me about a failed invention or discovery that was ahead of its time or failed for an interesting reason. Focus on something obscure but significant. Explain why it didn't catch on briefly. Keep it concise and under 250 characters.",
+                "Share a fact about animal behavior that seems bizarre or counterintuitive. Choose something specific about a particular species that challenges assumptions about how animals work. Avoid common examples like 'dolphins are smart'. Keep it concise and under 250 characters.",
+                "Reveal a historical misconception - something people commonly believe about history that's actually wrong. Make it specific and surprising. Help correct a widespread misunderstanding briefly. Keep it concise and under 250 characters.",
+                "Tell me about an accidental discovery that changed the world. Focus on something lesser-known but impactful. Explain the serendipitous circumstances briefly. Keep it concise and under 250 characters.",
+                "Share a fact about the human body that seems impossible but is true. Choose something specific and counterintuitive about anatomy, physiology, or psychology. Make it something that makes people check their own bodies. Keep it concise and under 250 characters.",
+                "Reveal a fact about a weird law, regulation, or legal oddity from history or around the world. Make it specific and explain the context briefly. Avoid overly common examples. Keep it concise and under 250 characters.",
+                "Tell me about a linguistic oddity - something strange about how language works, untranslatable words, or language quirks. Make it specific and reveal how language shapes thought in unexpected ways. Keep it concise and under 250 characters.",
+                "Share a fact about scale comparisons that puts things in perspective in a mind-blowing way. Compare sizes, times, distances, or quantities in ways that reveal hidden truths. Make it specific and visual. Keep it concise and under 250 characters.",
+                "Reveal a fact about a natural phenomenon that seems magical but has a scientific explanation. Choose something specific and lesser-known. Make the explanation brief but fascinating. Keep it concise and under 250 characters.",
+                "Tell me about an obscure historical event or figure that had massive consequences but is rarely discussed. Make it specific and explain the ripple effects briefly. Keep it concise and under 250 characters.",
+                "Share a fact about food, cooking, or culinary history that reveals something unexpected about culture, science, or human behavior. Make it specific and avoid common food facts. Keep it concise and under 250 characters.",
+                "Reveal a fact about technology or engineering that seems impossible but is true. Choose something specific about how something works that challenges assumptions. Make it accessible but mind-blowing. Keep it concise and under 250 characters.",
+                "Tell me about a paradox or logical puzzle that exists in the real world (not just theoretical). Explain a situation where reality seems to contradict itself briefly. Make it specific and verifiable. Keep it concise and under 250 characters.",
+                "Share a fact about space, astronomy, or the universe that puts human existence in perspective. Choose something specific and mind-boggling about scale, time, or cosmic phenomena. Keep it concise and under 250 characters.",
+                "Reveal a fact about a cultural practice, tradition, or custom from a specific place/time that seems strange but makes perfect sense in context. Make it specific and help people understand different worldviews. Keep it concise and under 250 characters.",
+                "Tell me about a 'butterfly effect' moment - a small, seemingly insignificant event that had massive historical consequences. Make it specific and trace the unexpected connections briefly. Keep it concise and under 250 characters.",
+                "Share a fact about mathematics or patterns in nature that reveals hidden beauty or order. Choose something specific and visual that makes abstract concepts tangible. Make it surprising and elegant. Keep it concise and under 250 characters.",
+                "Reveal a fact about psychology or human behavior that explains something we all experience but rarely think about. Make it specific and help people understand themselves better. Avoid generic psychology facts. Keep it concise and under 250 characters.",
+                "Tell me about an edge case or exception to a general rule in science, nature, or human behavior. Find something that 'breaks' common assumptions. Make it specific and reveal how reality is more complex than we think. Keep it concise and under 250 characters.",
+                "Share a fact about the ocean, marine life, or underwater phenomena that seems impossible. Choose something specific and lesser-known. Make it reveal how much we still don't know about the deep sea. Keep it concise and under 250 characters.",
+                "Reveal a fact about time, perception, or how we experience reality that challenges assumptions. Make it specific and make people question their own experience of time or consciousness. Keep it concise and under 250 characters.",
+                "Tell me about a fact that connects seemingly unrelated things in an unexpected way. Reveal hidden connections between history, science, culture, or nature. Make it specific and surprising. Keep it concise and under 250 characters.",
+                "Share a fact about a 'what could have been' moment - an invention, discovery, or historical path that almost happened but didn't. Make it specific and explain the alternate timeline briefly. Keep it concise and under 250 characters.",
+                "Reveal a fact about survival, adaptation, or evolution that seems impossible but is true. Choose something specific about how life finds a way in extreme circumstances. Make it awe-inspiring and specific. Keep it concise and under 250 characters.",
+                "Tell me about a fact that reveals something hidden in plain sight - something we see every day but don't understand. Make it specific and make people look at the world differently. Focus on something mundane made fascinating. Keep it concise and under 250 characters."
             ]
             
             prompt = random.choice(prompts)
@@ -194,9 +194,9 @@ class FactsCog(commands.Cog):
             )
             
             fact = response.text.strip()
-            # Basic validation
-            if len(fact) > 400:
-                fact = fact[:397] + "..."
+            # Basic validation - ensure it fits in Discord embed (2000 char limit, but keep shorter for readability)
+            if len(fact) > 300:
+                fact = fact[:297] + "..."
             
             return fact
             
