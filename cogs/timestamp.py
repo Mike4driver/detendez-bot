@@ -364,11 +364,17 @@ class TimestampCog(commands.Cog):
         timezone = await self.bot.db.get_user_timezone(message.author.id)
         
         if not timezone:
-            # User hasn't set timezone - prompt them
-            await message.reply(
-                f"I noticed you mentioned a time! Please set your timezone with `/set-timezone` so I can convert it for others.",
-                mention_author=False
-            )
+            # User hasn't set timezone - prompt them (send as DM to avoid cluttering channel)
+            try:
+                await message.author.send(
+                    f"I noticed you mentioned a time in {message.channel.mention}! Please set your timezone with `/set-timezone` so I can convert it for others."
+                )
+            except discord.Forbidden:
+                # User has DMs disabled, fall back to reply
+                await message.reply(
+                    f"I noticed you mentioned a time! Please set your timezone with `/set-timezone` so I can convert it for others.",
+                    mention_author=False
+                )
             return
         
         # Convert patterns to Discord timestamps

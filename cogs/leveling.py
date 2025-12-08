@@ -13,47 +13,47 @@ class LevelingCog(commands.Cog):
         self.bot = bot
         self.user_cooldowns = {}  # Track user message cooldowns
     
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Award XP for messages"""
-        # Ignore bots and DMs
-        if message.author.bot or not message.guild:
-            return
+    # @commands.Cog.listener()
+    # async def on_message(self, message):
+    #     """Award XP for messages"""
+    #     # Ignore bots and DMs
+    #     if message.author.bot or not message.guild:
+    #         return
         
-        # Get guild configuration
-        config = await self.bot.db.get_guild_config(message.guild.id)
+    #     # Get guild configuration
+    #     config = await self.bot.db.get_guild_config(message.guild.id)
         
-        # Check if channel is excluded
-        if config.get('excluded_channels'):
-            excluded = config['excluded_channels'].split(',')
-            if str(message.channel.id) in excluded:
-                return
+    #     # Check if channel is excluded
+    #     if config.get('excluded_channels'):
+    #         excluded = config['excluded_channels'].split(',')
+    #         if str(message.channel.id) in excluded:
+    #             return
         
-        # Check cooldown
-        user_key = f"{message.author.id}_{message.guild.id}"
-        current_time = time.time()
-        cooldown = config.get('xp_cooldown', 60)
+    #     # Check cooldown
+    #     user_key = f"{message.author.id}_{message.guild.id}"
+    #     current_time = time.time()
+    #     cooldown = config.get('xp_cooldown', 60)
         
-        if user_key in self.user_cooldowns:
-            if current_time - self.user_cooldowns[user_key] < cooldown:
-                return
+    #     if user_key in self.user_cooldowns:
+    #         if current_time - self.user_cooldowns[user_key] < cooldown:
+    #             return
         
-        self.user_cooldowns[user_key] = current_time
+    #     self.user_cooldowns[user_key] = current_time
         
-        # Get user's current data
-        user_data = await self.bot.db.get_user_level_data(message.author.id, message.guild.id)
-        old_level = user_data['level'] if user_data else 1
+    #     # Get user's current data
+    #     user_data = await self.bot.db.get_user_level_data(message.author.id, message.guild.id)
+    #     old_level = user_data['level'] if user_data else 1
         
-        # Award XP
-        xp_amount = config.get('xp_per_message', 15)
-        await self.bot.db.update_user_xp(message.author.id, message.guild.id, xp_amount)
+    #     # Award XP
+    #     xp_amount = config.get('xp_per_message', 15)
+    #     await self.bot.db.update_user_xp(message.author.id, message.guild.id, xp_amount)
         
-        # Check for level up
-        new_data = await self.bot.db.get_user_level_data(message.author.id, message.guild.id)
-        new_level = new_data['level']
+    #     # Check for level up
+    #     new_data = await self.bot.db.get_user_level_data(message.author.id, message.guild.id)
+    #     new_level = new_data['level']
         
-        if new_level > old_level:
-            await self._handle_level_up(message, new_level, config)
+    #     if new_level > old_level:
+    #         await self._handle_level_up(message, new_level, config)
     
     async def _handle_level_up(self, message, new_level, config):
         """Handle level up notifications"""
