@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SFTP Upload Script for DetendezBot
-Uploads all files in the current directory to bot-service-na-west-05.cybrancee.com:2022
+Uploads all files in the current directory to a remote server via SFTP
 """
 
 import os
@@ -14,6 +14,10 @@ import logging
 from getpass import getpass
 import base64
 import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -26,12 +30,12 @@ class SFTPUploader:
     """Handles SFTP upload of all files to the remote server"""
     
     def __init__(self):
-        # SFTP Configuration for bot-service-na-west-05.cybrancee.com
-        self.hostname = 'bot-service-na-west-05.cybrancee.com'
-        self.port = 2022
+        # SFTP Configuration - Set these in your .env file or modify directly
+        self.hostname = os.getenv('SFTP_HOST', 'your-server.com')
+        self.port = int(os.getenv('SFTP_PORT', '22'))
         self.username = None  # Will be prompted
         self.password = None  # Will be prompted
-        self.remote_path = ''
+        self.remote_path = os.getenv('SFTP_REMOTE_PATH', '')
         
         # Local configuration
         self.local_path = Path.cwd()
@@ -378,14 +382,10 @@ class SFTPUploader:
 
 def main():
     """Main function"""
-    print("SFTP File Upload Script")
-    print("=" * 40)
-    print(f"Target Server: bot-service-na-west-05.cybrancee.com:2022")
-    print(f"Local Directory: {Path.cwd()}")
-    print()
-    
     if len(sys.argv) > 1:
         if sys.argv[1] in ['--help', '-h']:
+            print("SFTP File Upload Script")
+            print("=" * 40)
             print("Usage:")
             print("  python upload_all_files.py           Upload all files")
             print("  python upload_all_files.py --help    Show this help")
@@ -394,9 +394,14 @@ def main():
             print("This script will:")
             print("  1. Load saved credentials if available (or prompt for new ones)")
             print("  2. Show preview of files to upload")
-            print("  3. Upload all files to / on the server")
+            print("  3. Upload all files to the remote server")
             print("  4. Maintain directory structure")
             print("  5. Skip common excluded files (.git, __pycache__, etc.)")
+            print()
+            print("Environment Variables:")
+            print("  SFTP_HOST         - Remote server hostname")
+            print("  SFTP_PORT         - SSH port (default: 22)")
+            print("  SFTP_REMOTE_PATH  - Remote directory path (default: empty)")
             print()
             print("Credentials are saved in .upload_config (excluded from upload)")
             return
@@ -406,7 +411,18 @@ def main():
             print("Saved credentials cleared.")
             return
     
+    print("SFTP File Upload Script")
+    print("=" * 40)
     uploader = SFTPUploader()
+    print(f"Target Server: {uploader.hostname}:{uploader.port}")
+    print(f"Local Directory: {Path.cwd()}")
+    print()
+    
+    # Validate configuration
+    if uploader.hostname == 'your-server.com':
+        logger.error("Missing required configuration. Please set SFTP_HOST in .env file")
+        logger.info("Run 'python upload_all_files.py --help' for configuration details")
+        sys.exit(1)
     success = uploader.upload_all()
     
     if success:
